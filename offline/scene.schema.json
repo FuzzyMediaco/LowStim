@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LowStim scene",
+  "type": "object",
+  "properties": {
+    "activity": {
+      "type": "string",
+      "enum": [
+        "animation",
+        "dodge",
+        "jump",
+        "pet"
+      ]
+    },
+    "subject": {
+      "type": "string",
+      "enum": [
+        "pirate ship",
+        "boat",
+        "rocket",
+        "plane",
+        "bird",
+        "car",
+        "bicycle",
+        "fish",
+        "octopus",
+        "cat",
+        "dog",
+        "bear",
+        "dragon",
+        "tree",
+        "house",
+        "flower",
+        "umbrella",
+        "cloud",
+        "monster"
+      ]
+    },
+    "setting": {
+      "type": "string",
+      "enum": [
+        "island",
+        "ocean",
+        "space",
+        "sky",
+        "road",
+        "forest",
+        "garden",
+        "room",
+        "underwater",
+        "mountains"
+      ]
+    },
+    "motion": {
+      "type": "string",
+      "enum": [
+        "glide",
+        "bounce",
+        "orbit",
+        "fly",
+        "swim",
+        "grow"
+      ]
+    },
+    "prop": {
+      "type": "string",
+      "enum": [
+        "none",
+        "moon",
+        "stars",
+        "island",
+        "fish",
+        "trees",
+        "clouds",
+        "rocks"
+      ]
+    }
+  },
+  "required": [
+    "activity",
+    "subject",
+    "setting",
+    "motion",
+    "prop"
+  ],
+  "additionalProperties": false
+}

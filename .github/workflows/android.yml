@@ -1,0 +1,56 @@
+name: Android test APK
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android build dependencies
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+      - name: Build and sign a test APK
+        env:
+          FORGE_KEYSTORE: ${{ runner.temp }}/test.keystore
+          FORGE_KEYSTORE_PASSWORD: android
+          LLAMA_SOURCE: ${{ runner.temp }}/llama
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
+          export FORGE_BUILD_DIR="$RUNNER_TEMP/build"
+          mkdir -p "$LLAMA_SOURCE"
+          curl --fail --location --retry 3 https://codeload.github.com/ggml-org/llama.cpp/tar.gz/refs/tags/b6348 | tar -xz --strip-components=1 -C "$LLAMA_SOURCE"
+          keytool -genkeypair -keystore "$FORGE_KEYSTORE" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 3650 -dname 'CN=LowStim Test'
+          android/build-apk.sh "$RUNNER_TEMP/LowStim.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LowStim-ARM64
+          path: ${{ runner.temp }}/LowStim.apk
+          if-no-files-found: error
+
+  release:
+    needs: apk
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: LowStim-ARM64
+      - name: Publish the first phone-test APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view v0.2.0 >/dev/null 2>&1; then
+            echo "The v0.2.0 release already exists."
+          else
+            gh release create v0.2.0 LowStim.apk --target "$GITHUB_SHA" --prerelease --title "LowStim v0.2.0" --notes "Signed ARM64 test build for Android 12 or later. Follow the README to import Qwen for offline AI planning."
+          fi

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<link rel="manifest" href="app.webmanifest">
+<meta name="description" content="An empty slate. Draw, type, or speak to make something move.">
+<title>LowStim</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:white;color:black;font:16px system-ui,sans-serif}canvas{width:100%;height:100%;display:block;touch-action:none}canvas:focus:not(:focus-visible){outline:none}canvas:focus-visible{outline:2px solid;outline-offset:-3px}
+.chin{position:fixed;bottom:max(16px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(660px,calc(100% - 28px));display:grid;gap:6px;pointer-events:none}.row,.msg{pointer-events:auto;border:1px solid #111;background:#fff;box-shadow:3px 3px 0 #111}.row{display:flex;align-items:stretch;gap:3px;padding:4px}.row button,.msg button{background:white;color:black;border:1px solid transparent;font:inherit;min-height:44px;padding:0 10px;cursor:pointer;white-space:nowrap}.row button:hover,.msg button:hover{border-color:black}.row button.main{background:black;color:white;font-weight:720}.row input{border:0;border-right:1px solid black;min-width:0;width:100%;padding:0 8px;font:inherit;color:black}.row input::placeholder{color:#555}.msg{padding:8px 10px;font-size:14px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}.msg button{border:1px solid #111;min-height:36px;padding:0 8px;font-size:14px}.msg p{margin:3px 0;width:100%}button:focus-visible,input:focus-visible{outline:2px solid;outline-offset:-2px}.main:focus-visible{outline-color:white}.msg:empty,[hidden]{display:none!important}.tiny{font-size:13px!important}.collection{position:fixed;inset:auto 0 0;max-height:66%;overflow:auto;padding:18px;background:white;border-top:2px solid black}.collection header{display:flex;justify-content:space-between;align-items:center}.collection h2{margin:0}.collection button{min-height:44px;background:white;color:black;border:1px solid black;margin:6px 5px 0 0;padding:4px 10px;font:inherit}.collection button:hover{background:black;color:white}
+</style>
+</head>
+<body>
+<canvas id="surface" tabindex="0" aria-label="Blank slate. Drag to draw. Tap or press Enter to type or speak."></canvas>
+<button id="more" type="button" aria-label="Make or change a scene" hidden style="position:fixed;bottom:max(16px,env(safe-area-inset-bottom));right:16px;background:white;border:1px solid black;color:black;min-width:44px;min-height:44px;font-size:19px">···</button>
+<div class="chin">
+<div class="msg" id="notice" role="status" hidden></div>
+<form class="row" id="bar" hidden>
+<input id="idea" aria-label="What should the slate make?" maxlength="200" placeholder="Say it, type it, or draw it" autocomplete="off" enterkeyhint="go">
+<button type="button" id="mic" aria-label="Speak">Mic</button>
+<button type="submit" id="go" class="main">Make</button>
+<button type="button" id="menu" aria-label="Slate options">···</button>
+</form>
+</div>
+<section class="collection" id="collection" hidden aria-label="Slate options">
+<header><h2>Slate</h2><button id="close" type="button">Done</button></header>
+<button id="new" type="button">Blank canvas</button>
+<button id="model" type="button" hidden>Import Qwen GGUF</button>
+<p id="modelInfo" hidden></p>
+<h3>Saved creations</h3><div id="saved"></div>
+</section>
+<script src="sketch-model.js" defer></script>
+<script src="scene.js" defer></script>
+<script src="world.js" defer></script>
+<script src="slate.js" defer></script>
+</body>
+</html>
