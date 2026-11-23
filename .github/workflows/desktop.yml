@@ -1,0 +1,113 @@
+name: Desktop app
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - 'dist/**'
+      - 'android/native/**'
+      - '.github/workflows/desktop.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            platform: win32
+            arch: x64
+            asset: LowStim-Windows-x64.zip
+          - runner: macos-15
+            platform: darwin
+            arch: arm64
+            asset: LowStim-Mac-Apple-Silicon.zip
+          - runner: macos-15-intel
+            platform: darwin
+            arch: x64
+            asset: LowStim-Mac-Intel.zip
+          - runner: ubuntu-24.04
+            platform: linux
+            arch: x64
+            asset: LowStim-Linux-x64.tar.gz
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile and package
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          bash desktop/package.sh "$PLATFORM" "$ARCH" "$RUNNER_TEMP/lowstim-build" "$RUNNER_TEMP/lowstim-out"
+      - name: Verify app launch and prepare download
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ARCH: ${{ matrix.arch }}
+          ASSET: ${{ matrix.asset }}
+        run: |
+          bundle="$RUNNER_TEMP/lowstim-out/LowStim-$PLATFORM-$ARCH"
+          mkdir -p "$RUNNER_TEMP/lowstim-release"
+          download="$RUNNER_TEMP/lowstim-release/$ASSET"
+          case "$PLATFORM" in
+            darwin)
+              app="$bundle/LowStim.app"
+              codesign --force --deep --sign - --preserve-metadata=entitlements,flags,runtime "$app"
+              codesign --verify --deep "$app"
+              "$app/Contents/MacOS/LowStim" --lowstim-smoke-test
+              ditto -c -k --keepParent "$app" "$download"
+              ;;
+            win32)
+              "$bundle/LowStim.exe" --lowstim-smoke-test
+              python -m zipfile -c "$download" "$bundle"
+              ;;
+            linux)
+              if ! command -v xvfb-run >/dev/null; then
+                sudo apt-get update
+                sudo apt-get install -y xvfb
+              fi
+              xvfb-run -a "$bundle/LowStim" --lowstim-smoke-test --no-sandbox
+              tar -czf "$download" -C "$RUNNER_TEMP/lowstim-out" "LowStim-$PLATFORM-$ARCH"
+              ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ runner.temp }}/lowstim-release/${{ matrix.asset }}
+          if-no-files-found: error
+          compression-level: 0
+  release:
+    needs: package
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: downloads
+          merge-multiple: true
+      - name: Publish LowStim Desktop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view desktop-v0.2.0 >/dev/null 2>&1; then
+            echo "The LowStim Desktop 0.2.0 release already exists."
+          else
+            gh release create desktop-v0.2.0 downloads/LowStim-* --target "$GITHUB_SHA" \
+              --prerelease --title "LowStim Desktop 0.2.0" \
+              --notes "Extract your platform’s download and run LowStim. Includes offline English speech and sketch recognition. Import a Qwen GGUF for local AI planning. This is a test release. The Windows build is unsigned, and the macOS builds are ad hoc signed and are not notarized."
+          fi
