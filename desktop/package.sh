@@ -47,7 +47,9 @@ cmake -S "$work/whisper" -B "$work/whisper-build" "${common[@]}" \
 cmake --build "$work/whisper-build" --config Release --target whisper-cli --parallel 4
 
 stage="$work/app"
-mkdir -p "$stage/native" "$stage/dist"
+native="$work/native"
+mkdir -p "$native" "$stage/dist"
+rm -rf "$stage/native"
 cp desktop/package.json desktop/main.cjs desktop/preload.cjs "$stage/"
 cp -a dist/. "$stage/dist/"
 cp desktop/desktop-device.js "$stage/dist/"
@@ -65,18 +67,18 @@ suffix=""
 if [[ "$platform" == win32 ]]; then suffix=".exe"; fi
 planner="$(find "$work/planner-build" -type f -name "forge-smoke$suffix" -print -quit)"
 speech="$(find "$work/whisper-build" -type f -name "whisper-cli$suffix" -print -quit)"
-cp "$planner" "$stage/native/lowstim-planner$suffix"
-cp "$speech" "$stage/native/whisper-cli$suffix"
-cp "$model" "$stage/native/tiny.en.bin"
-cp "$work/llama/LICENSE" "$stage/native/llama-LICENSE.txt"
-cp "$work/whisper/LICENSE" "$stage/native/whisper-LICENSE.txt"
+cp "$planner" "$native/lowstim-planner$suffix"
+cp "$speech" "$native/whisper-cli$suffix"
+cp "$model" "$native/tiny.en.bin"
+cp "$work/llama/LICENSE" "$native/llama-LICENSE.txt"
+cp "$work/whisper/LICENSE" "$native/whisper-LICENSE.txt"
 cp desktop/THIRD-PARTY.md "$stage/"
 if [[ "$platform" != win32 ]]; then
-    chmod +x "$stage/native/lowstim-planner" "$stage/native/whisper-cli"
+    chmod +x "$native/lowstim-planner" "$native/whisper-cli"
 fi
 flags=()
 if [[ "$platform" == darwin ]]; then
     flags+=(--extend-info="$root/desktop/mac-info.plist" --app-bundle-id=com.fuzzymediaco.lowstim.desktop)
 fi
 npx --yes @electron/packager@20.3.0 "$stage" LowStim --platform="$platform" --arch="$arch" \
-    --electron-version="$version" --out="$output" --overwrite "${flags[@]}"
+    --electron-version="$version" --out="$output" --extra-resource="$native" --overwrite "${flags[@]}"

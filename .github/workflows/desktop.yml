@@ -12,7 +12,7 @@ permissions:
   contents: read
 concurrency:
   group: desktop-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   package:
     strategy:
@@ -61,16 +61,17 @@ jobs:
           bundle="$RUNNER_TEMP/lowstim-out/LowStim-$PLATFORM-$ARCH"
           mkdir -p "$RUNNER_TEMP/lowstim-release"
           download="$RUNNER_TEMP/lowstim-release/$ASSET"
+          sample="$RUNNER_TEMP/lowstim-build/whisper/samples/jfk.wav"
           case "$PLATFORM" in
             darwin)
               app="$bundle/LowStim.app"
               codesign --force --deep --sign - --preserve-metadata=entitlements,flags,runtime "$app"
               codesign --verify --deep "$app"
-              "$app/Contents/MacOS/LowStim" --lowstim-smoke-test
+              "$app/Contents/MacOS/LowStim" --lowstim-smoke-test --lowstim-voice-sample "$sample"
               ditto -c -k --keepParent "$app" "$download"
               ;;
             win32)
-              "$bundle/LowStim.exe" --lowstim-smoke-test
+              "$bundle/LowStim.exe" --lowstim-smoke-test --lowstim-voice-sample "$sample"
               python -m zipfile -c "$download" "$bundle"
               ;;
             linux)
@@ -78,7 +79,7 @@ jobs:
                 sudo apt-get update
                 sudo apt-get install -y xvfb
               fi
-              xvfb-run -a "$bundle/LowStim" --lowstim-smoke-test --no-sandbox
+              xvfb-run -a "$bundle/LowStim" --lowstim-smoke-test --lowstim-voice-sample "$sample" --no-sandbox
               tar -czf "$download" -C "$RUNNER_TEMP/lowstim-out" "LowStim-$PLATFORM-$ARCH"
               ;;
           esac
@@ -104,10 +105,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          if gh release view desktop-v0.2.0 >/dev/null 2>&1; then
-            echo "The LowStim Desktop 0.2.0 release already exists."
+          if gh release view desktop-v0.2.1 >/dev/null 2>&1; then
+            echo "The LowStim Desktop 0.2.1 release already exists."
           else
-            gh release create desktop-v0.2.0 downloads/LowStim-* --target "$GITHUB_SHA" \
-              --prerelease --title "LowStim Desktop 0.2.0" \
+            gh release create desktop-v0.2.1 downloads/LowStim-* --target "$GITHUB_SHA" \
+              --prerelease --title "LowStim Desktop 0.2.1" \
               --notes "Extract your platform’s download and run LowStim. Includes offline English speech and sketch recognition. Import a Qwen GGUF for local AI planning. This is a test release. The Windows build is unsigned, and the macOS builds are ad hoc signed and are not notarized."
           fi

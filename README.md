@@ -4,7 +4,7 @@ A blank, black-and-white slate. Draw a sketch or tap anywhere to type or speak. 
 
 ## Desktop test
 
-Download the archive for your computer from [LowStim Desktop Releases](https://github.com/FuzzyMediaco/LowStim/releases/tag/desktop-v0.2.0). Extract the entire archive, then open **LowStim.exe** on Windows or **LowStim.app** on macOS. On Linux, open **LowStim** inside the extracted folder. The test releases are unsigned on Windows and ad hoc signed on macOS.
+Download the archive for your computer from [LowStim Desktop Releases](https://github.com/FuzzyMediaco/LowStim/releases/tag/desktop-v0.2.1). Extract the entire archive, then open **LowStim.exe** on Windows or **LowStim.app** on macOS. On Linux, open **LowStim** inside the extracted folder. The test releases are unsigned on Windows and ad hoc signed on macOS.
 
 Draw on the blank slate, or click the slate to type or use **Mic**. On desktop, click **Stop** when you've finished speaking. The desktop app includes offline English speech recognition and the sketch classifier. To enable local AI planning, download the [Qwen GGUF](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf) and use **··· → Import Qwen GGUF**. No emulator, account, or local server is needed.
 

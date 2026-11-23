@@ -7,13 +7,14 @@ const {execFile}=require("node:child_process");
 
 const origin="lowstim://app";
 const startUrl=origin+"/index.html";
-const packagedAssets=path.join(__dirname,"native");
+const packagedAssets=path.join(process.resourcesPath,"native");
 const assets=path.join(__dirname,"dist");
 const modelName="planner.gguf";
 const maxModelBytes=3_000_000_000;
 const children=new Set();
 let win, planning=false, importing=false, transcribing=false;
 const smoke=process.argv.includes("--lowstim-smoke-test");
+const sampleIndex=process.argv.indexOf("--lowstim-voice-sample");
 
 protocol.registerSchemesAsPrivileged([{scheme:"lowstim",privileges:{standard:true,secure:true,supportFetchAPI:true}}]);
 
@@ -138,7 +139,15 @@ app.whenReady().then(async ()=>{
         const suffix=process.platform==="win32"?".exe":"";
         const required=["lowstim-planner"+suffix,"whisper-cli"+suffix,"tiny.en.bin"];
         if(!result||!required.every(name=>existsSync(path.join(packagedAssets,name))))throw Error("Desktop launch check failed");
-        await run("whisper-cli",["--help"],5000);
+        if(sampleIndex>0){
+          await withTemporaryFolder(async dir=>{
+            const output=path.join(dir,"verify");
+            await run("whisper-cli",["-m",path.join(packagedAssets,"tiny.en.bin"),
+              "-f",process.argv[sampleIndex+1],"-of",output,"-otxt","-nt","-l","en","-t","4","-ng"],25000);
+            const transcript=await fs.readFile(output+".txt","utf8");
+            if(!/ask not what your country/i.test(transcript))throw Error("Bundled speech recognition check failed");
+          });
+        }else await run("whisper-cli",["--help"],5000);
         app.exit(0);
       }).catch(error=>{console.error(error.message);app.exit(1);});
     }else loading.catch(error=>console.error(error.message));
