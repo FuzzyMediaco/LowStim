@@ -14,8 +14,28 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Install Android build dependencies
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+      - name: Install pinned Android build tools
+        run: |
+          set -euo pipefail
+          sdk="$RUNNER_TEMP/lowstim-android"
+          downloads="$RUNNER_TEMP/lowstim-sdk-downloads"
+          mkdir -p "$downloads" "$sdk/platforms" "$sdk/build-tools" "$sdk/ndk" "$sdk/cmake/3.22.1"
+          fetch() {
+            curl --fail --silent --show-error --location --retry 3 "https://dl.google.com/android/repository/$1" -o "$downloads/$1"
+            printf '%s  %s\n' "$2" "$downloads/$1" | sha1sum --check
+          }
+          fetch platform-35_r02.zip 0bb560a90a7a2cbd0dd8348224d518b638fe7949 & platform_pid=$!
+          fetch build-tools_r35_linux.zip 2cfaa0bbb2336e9ec18ed3ecea84fa2e2af607bc & tools_pid=$!
+          fetch android-ndk-r27c-linux.zip 090e8083a715fdb1a3e402d0763c388abb03fb4e & ndk_pid=$!
+          fetch cmake-3.22.1-linux.zip fd0a48b4a758310df8c7aa51f59840ed48fe7ed8 & cmake_pid=$!
+          for pid in "$platform_pid" "$tools_pid" "$ndk_pid" "$cmake_pid"; do wait "$pid"; done
+          unzip -q "$downloads/platform-35_r02.zip" -d "$sdk/platforms"
+          unzip -q "$downloads/build-tools_r35_linux.zip" -d "$sdk/build-tools"
+          mv "$sdk/build-tools/android-15" "$sdk/build-tools/35.0.0"
+          unzip -q "$downloads/android-ndk-r27c-linux.zip" -d "$sdk/ndk"
+          mv "$sdk/ndk/android-ndk-r27c" "$sdk/ndk/27.2.12479018"
+          unzip -q "$downloads/cmake-3.22.1-linux.zip" -d "$sdk/cmake/3.22.1"
+          echo "ANDROID_HOME=$sdk" >> "$GITHUB_ENV"
       - name: Build and sign a test APK
         env:
           FORGE_KEYSTORE: ${{ runner.temp }}/test.keystore
