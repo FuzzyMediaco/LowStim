@@ -74,3 +74,13 @@ jobs:
           else
             gh release create v0.2.0 LowStim.apk --target "$GITHUB_SHA" --prerelease --title "LowStim v0.2.0" --notes "Signed ARM64 test build for Android 12 or later. Follow the README to import Qwen for offline AI planning."
           fi
+          assets="$(gh release view v0.2.0 --json assets --jq '.assets[].name')"
+          if ! grep -Fxq 'LowStim-Android.zip' <<< "$assets"; then
+            archive_dir="$(mktemp -d)"
+            trap 'rm -rf "$archive_dir"' EXIT
+            gh release download v0.2.0 --pattern 'LowStim.apk' --dir "$archive_dir"
+            unzip -tq "$archive_dir/LowStim.apk"
+            (cd "$archive_dir" && zip -9q LowStim-Android.zip LowStim.apk)
+            unzip -tq "$archive_dir/LowStim-Android.zip"
+            gh release upload v0.2.0 "$archive_dir/LowStim-Android.zip"
+          fi
