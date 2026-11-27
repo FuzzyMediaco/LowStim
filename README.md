@@ -29,10 +29,10 @@ The Worker binds a dedicated D1 database as `DB` and static assets as `ASSETS`. 
 
 1. Place the two model files, with the original basenames in `dist/model-assets.json`, in a directory outside the repository.
 2. Run `python3 tools/build-offline.py --archive dist/download/LowStim-offline.zip` to stamp the offline shell and cross-compile the 64-bit launchers.
-3. Run `python3 tools/model-downloads.py PATH_TO_MODELS --complete /tmp/LowStim-complete.zip` to verify both weights and generate the asset chunks, ZIP directory and checksums.
+3. Run `python3 tools/model-downloads.py PATH_TO_MODELS --complete /tmp/LowStim-complete.zip` to verify both weights and generate the asset chunks, ZIP directory and checksums. Pass `--android PATH_TO_ANDROID_ZIP` in the same command to publish the native test package.
 4. Set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` and `LOWSTIM_D1_ID` for the target account, then run `node cloud/deploy.mjs`. The downloaded launcher uses the production Cloudflare account origin in `download/launcher.go`.
 5. Run `node --test tests/*.mjs tests/*.test.cjs offline/scene.test.cjs`. The catalog test supports an additional exhaustive raster check.
 
-The Android and Electron directories also contain standalone native packaging paths. The web/PWA and downloadable loopback edition are the shared account-enabled product. The native wrappers keep their own device storage, speech engine and model import.
+A separate [native Android ARM64 test ZIP](https://lowstim.fuzzymedia.workers.dev/download/LowStim-Android-ARM64.zip) bundles Whisper and accepts a local Qwen import. It uses an Android test signer and keeps saves on the phone. The Android and Electron directories contain the standalone native packaging paths. The web/PWA and downloadable loopback edition are the shared account-enabled product. The native wrappers keep their own device storage, speech engine and model import.
 
 The Android build uses JDK 17, Android SDK 35 (build tools 35.0.0), NDK r27c and CMake 3.22.1. The CI workflow pins llama.cpp and provisions the other build inputs. Use the same Android signing key for in-place upgrades. The desktop workflow packages Electron and native model/speech executables for each matching worker.

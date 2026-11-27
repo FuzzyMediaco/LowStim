@@ -94,7 +94,7 @@ export function workerMetadata(database, completion) {
           "  Cross-Origin-Embedder-Policy: require-corp",
           "  X-Content-Type-Options: nosniff",
         ].join("\n"),
-        run_worker_first: ["/api/*", "/model-packs/*", "/download/LowStim-complete.zip"],
+        run_worker_first: ["/api/*", "/model-packs/*", "/download/LowStim-complete.zip", "/download/LowStim-Android-ARM64.zip"],
       },
     },
   };
@@ -103,7 +103,7 @@ export function workerMetadata(database, completion) {
 export async function validateDownloads(manifest) {
   const index = JSON.parse(await readFile(join(dist, "download/files.json"), "utf8"));
   const models = JSON.parse(await readFile(join(dist, "model-assets.json"), "utf8"));
-  const required = ["/download/LowStim-complete.zip"];
+  const required = ["/download/LowStim-complete.zip", "/download/LowStim-Android-ARM64.zip"];
   for (const model of Object.values(models.weights)) {
     required.push("/model-packs/" + new URL(model.url, "https://lowstim.invalid").pathname.split("/").at(-1));
   }

@@ -194,7 +194,7 @@ async function download(request, env, url, ctx) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if (url.pathname === "/download/LowStim-complete.zip" || url.pathname.startsWith("/model-packs/")) return download(request, env, url, ctx);
+    if (["/download/LowStim-complete.zip","/download/LowStim-Android-ARM64.zip"].includes(url.pathname) || url.pathname.startsWith("/model-packs/")) return download(request, env, url, ctx);
     if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(request);
     try {
       return await api(request, env.DB, url);

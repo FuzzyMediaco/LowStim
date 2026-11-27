@@ -14,6 +14,7 @@ dest = dist / "download"
 parser = argparse.ArgumentParser()
 parser.add_argument("model_dir", type=Path, help="Directory with the two weight files named as in model-assets.json")
 parser.add_argument("--complete", type=Path, help="Assemble this ZIP after building dist/download/LowStim-offline.zip")
+parser.add_argument("--android", type=Path, help="Optionally publish a signed native Android ZIP alongside the desktop download")
 args = parser.parse_args()
 weights = json.loads((dist / "model-assets.json").read_text())["weights"]
 index = {}
@@ -68,4 +69,17 @@ if args.complete:
         checksum = hashlib.file_digest(contents, "sha256").hexdigest()
     index["/download/LowStim-complete.zip"] = {"bytes": size, "sha256": checksum, "parts": pieces}
     print(args.complete, size, "bytes", checksum)
+if args.android:
+    with zipfile.ZipFile(args.android) as apk_archive:
+        if apk_archive.namelist() != ["LowStim.apk"] or apk_archive.testzip() is not None:
+            raise ValueError("Expected a tested ZIP containing LowStim.apk")
+    pieces = []
+    hasher = hashlib.sha256()
+    with args.android.open("rb") as source:
+        while chunk := source.read(20 * 1024**2):
+            hasher.update(chunk)
+            part = dest / "packs" / f"android-{len(pieces):02d}.bin"
+            part.write_bytes(chunk)
+            pieces.append({"path": "/" + str(part.relative_to(dist)), "bytes": len(chunk)})
+    index["/download/LowStim-Android-ARM64.zip"] = {"bytes": args.android.stat().st_size, "sha256": hasher.hexdigest(), "parts": pieces}
 (dest / "files.json").write_text(json.dumps(index, separators=(",", ":")))
