@@ -11,7 +11,7 @@
   const blankLabel = canvas.getAttribute("aria-label");
   let size, scene = null, record = null, lastPlanner = "", strokes = [], transition = null;
   let drawing = null, touch = null, lastTap = null, anchor = null;
-  let sketchTimer, holdTimer, feedbackTimer, frameId = 0, previousTime = 0;
+  let sketchTimer, holdTimer, feedbackTimer, transcriptTimer, frameId = 0, previousTime = 0;
   let generation = 0, busy = false, saved = false, saving = false, planController = null;
   let voiceSession = null, nativeVoice = null, nativePlan = null, activeKey = null;
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -45,6 +45,7 @@
   }
   function tools(view, at) {
     clearTimeout(sketchTimer);
+    clearTimeout(transcriptTimer);
     if (at) anchor = at;
     for (const name of ["chooser", "bar", "voice"]) $(name).hidden = name !== view;
     popover.hidden = !view;
@@ -353,7 +354,13 @@
       return;
     }
     input.value = phrase.trim().slice(0, input.maxLength);
-    make();
+    tools("bar", anchor || center());
+    feedback("Tap the transcript to edit, or let it play.");
+    // Leave the keyboard closed until the speaker chooses to edit.
+    transcriptTimer = setTimeout(() => {
+      transcriptTimer = null;
+      if (!document.hidden && !$("bar").hidden) make();
+    }, 3200);
   }
   window.slateVoiceResult = (phrase, error) => {
     if (nativeVoice) finishVoice(nativeVoice, phrase, error);
@@ -454,6 +461,9 @@
   bindTool("cancelType", () => { input.blur(); tools(null); canvas.focus({preventScroll: true}); queueSketch(); });
   bindTool("menu", () => openMenu()); bindTool("more", () => openMenu()); bindTool("save", saveCurrent);
   $("bar").onsubmit = e => { e.preventDefault(); make(); };
+  input.addEventListener("focus", () => {
+    clearTimeout(transcriptTimer); transcriptTimer = null; feedback();
+  });
   input.onkeydown = e => { if (e.isComposing && e.key === "Enter") e.stopPropagation(); };
   window.addEventListener("resize", resize);
   window.visualViewport?.addEventListener("resize", placePopover);

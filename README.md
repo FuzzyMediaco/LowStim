@@ -2,7 +2,7 @@
 
 [Open the slate on Cloudflare](https://lowstim.fuzzymedia.workers.dev/)
 
-Draw directly on the dotted paper. Double-tap or hold anywhere on a blank slate to reveal the microphone, keyboard and menu. On a keyboard, press Enter to open the tools or start typing an idea. Pause after a drawing to create a scene. Try “hold the rocket to launch,” “assemble a rocket,” or “steer a boat around rocks.” The floppy disk in the upper right saves the current creation, including its seed and assembled parts, under an automatic title. Open the menu to replay it or choose a stimulation level for your next creation.
+Draw directly on the dotted paper. Double-tap or hold anywhere on a blank slate to reveal the microphone, keyboard and menu. On a keyboard, press Enter to open the tools or start typing an idea. Pause after a drawing to create a scene. After you speak, tap the transcript to correct it or let it generate automatically. Try “hold the rocket to launch,” “assemble a rocket,” or “steer a boat around rocks.” The floppy disk in the upper right saves the current creation, including its seed and assembled parts, under an automatic title. Open the menu to replay it or choose a stimulation level for your next creation.
 
 ## Hosted and offline editions
 
