@@ -1,0 +1,19 @@
+LowStim offline desktop edition
+
+Extract the entire LowStim folder. Open the launcher named for your computer.
+The launcher opens the slate in your browser at http://127.0.0.1:41731.
+Keep the launcher running while using LowStim. Close its window to stop.
+Windows and Mac builds are unsigned. On Linux, allow executing the launcher
+if your archive tool did not retain its executable bit.
+
+Draw on the paper. Double-tap or hold to type, speak, or open the menu.
+Open Offline in the slate menu and enable Qwen and Whisper. The complete ZIP
+includes both model files, so this step also works with Wi-Fi off. The smaller
+app-only ZIP downloads these files on first setup. Drawing and text also work
+before model setup. Use the same browser and profile to keep models and saves.
+Sign in once online to use your LowStim identity. Saved creations in this
+edition stay on this device. Open the hosted website to use your cloud library.
+The app never needs to send drawings, voice recordings, or prompts to a server.
+
+For Pixel, open the hosted site in Chrome and choose offline setup from the
+slate menu. Install both models, then use the browser's Install app option.

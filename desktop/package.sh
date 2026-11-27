@@ -51,7 +51,7 @@ native="$work/native"
 mkdir -p "$native" "$stage/dist"
 rm -rf "$stage/native"
 cp desktop/package.json desktop/main.cjs desktop/preload.cjs "$stage/"
-cp -a dist/. "$stage/dist/"
+(cd dist && tar --exclude=./download --exclude=./model-packs --exclude=./model-runtime -cf - .) | tar -xf - -C "$stage/dist"
 cp desktop/desktop-device.js "$stage/dist/"
 python - "$stage/dist/index.html" <<'PY'
 from pathlib import Path
@@ -70,6 +70,9 @@ speech="$(find "$work/whisper-build" -type f -name "whisper-cli$suffix" -print -
 cp "$planner" "$native/lowstim-planner$suffix"
 cp "$speech" "$native/whisper-cli$suffix"
 cp "$model" "$native/tiny.en.bin"
+if [[ -f "$root/dist/model-runtime/wllama/lowstim-lora.gguf" ]]; then
+    cp "$root/dist/model-runtime/wllama/lowstim-lora.gguf" "$native/"
+fi
 cp "$work/llama/LICENSE" "$native/llama-LICENSE.txt"
 cp "$work/whisper/LICENSE" "$native/whisper-LICENSE.txt"
 cp desktop/THIRD-PARTY.md "$stage/"

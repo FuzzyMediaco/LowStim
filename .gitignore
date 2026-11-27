@@ -1,8 +1,12 @@
 .venv/
 __pycache__/
 *.gguf
+!dist/model-runtime/wllama/lowstim-lora.gguf
 vosk-model-*/
 .android-build/
 *.apk
 *.jks
 *.keystore
+
+# Reproducible download artifacts. The build scripts retain hashes and pinned upstreams.
+dist/download/

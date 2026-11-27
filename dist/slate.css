@@ -1,0 +1,120 @@
+@font-face {
+  font-family: Pixelify;
+  src: url("./fonts/pixelify.ttf") format("truetype");
+  font-weight: 400 700;
+  font-display: swap;
+}
+:root {
+  color-scheme: light;
+  --ink: #191919;
+  --soft: #585858;
+  --edge: #adadad;
+  font: 400 18px/1.3 Pixelify, monospace;
+  color: var(--ink);
+  background: white;
+}
+* { box-sizing: border-box; }
+[hidden], dialog:not([open]) { display: none !important; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; }
+body { -webkit-tap-highlight-color: transparent; }
+button, input, a { font: inherit; color: inherit; }
+button, .button {
+  appearance: none; border: 1px solid var(--edge); background: white; color: var(--ink);
+  border-radius: 0; padding: 8px 11px; min-height: 44px; cursor: pointer; text-decoration: none;
+}
+.button { display: inline-flex; align-items: center; }
+button:hover, .button:hover { border-color: var(--ink); background: #f2f2f2; }
+button:active, .button:active { background: #e4e4e4; }
+button:disabled { cursor: default; color: #646464; }
+button:focus-visible, a:focus-visible, input:focus-visible, canvas:focus-visible {
+  outline: 2px dashed #494949; outline-offset: -4px;
+}
+.primary, .primary:hover { background: var(--ink); border-color: var(--ink); color: white; }
+.primary:focus-visible { outline-color: white; }
+svg { fill: currentColor; shape-rendering: crispEdges; }
+.symbols { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+.icon { display: inline-grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; }
+.icon svg { width: 20px; height: 20px; }
+#surface {
+  width: 100%; height: 100%; display: block; touch-action: none; user-select: none; -webkit-user-select: none;
+  background-color: white;
+  background-image: radial-gradient(circle at 1px 1px, #dfdfdf 0.75px, transparent 1px);
+  background-position: center center; background-size: 18px 18px;
+  image-rendering: pixelated;
+}
+#surface[data-pointing]:focus { outline: none; }
+#sceneHint {
+  position: fixed; z-index: 1; left: 50%; transform: translateX(-50%); width: max-content;
+  max-width: calc(100% - 24px); padding: 2px 7px; background: white; color: #494949;
+  text-align: center; font-size: 16px; line-height: 1.25; pointer-events: none;
+}
+#sceneGoal:not(:empty)::before { content: " · "; color: #888; }
+body:has(dialog[open]) #sceneHint, body:has(#popover:not([hidden])) #sceneHint { visibility: hidden; }
+.scene-tools {
+  position: fixed; top: max(12px,env(safe-area-inset-top)); right: max(12px,env(safe-area-inset-right)); display: flex; gap: 5px;
+}
+.scene-tools .icon { border-color: #c8c8c8; }
+#popover { position: fixed; z-index: 2; max-width: calc(100vw - 16px); }
+.toolbox { display: flex; gap: 2px; align-items: center; padding: 3px; border: 1px solid var(--ink); background: white; box-shadow: 2px 2px 0 #989898; }
+.toolbox .icon { border-color: transparent; }
+.toolbox .icon:hover { border-color: var(--edge); }
+.toolbox .icon.primary { border-color: var(--ink); }
+.toolbox .secondary { margin-left: 1px; border-left: 1px solid #d2d2d2; }
+.input-box { width: min(375px,calc(100vw - 18px)); }
+.input-box input { width: 0; min-width: 0; flex: 1; height: 44px; padding: 0 9px; background: white; border: none; border-radius: 0; }
+.input-box input::placeholder { color: #757575; }
+.voice-box span { padding: 0 9px; }
+.voice-box { max-width: calc(100vw - 18px); }
+.feedback {
+  position: fixed; bottom: max(18px,env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+  max-width: min(510px,calc(100% - 24px)); width: max-content; padding: 7px 12px;
+  border: 1px solid #aaa; background: white; display: flex; align-items: center; gap: 10px;
+}
+.feedback button { font-size: 16px; min-height: 36px; }
+#collection {
+  position: fixed; inset: max(14px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) auto auto;
+  margin: 0; padding: 0; width: min(430px,calc(100% - 28px)); max-width: none;
+  max-height: calc(100dvh - 28px); overflow: auto; color: var(--ink); background: white;
+  border: 1px solid var(--ink); border-radius: 0; box-shadow: 3px 3px 0 #888;
+}
+#collection::backdrop { background: rgb(255 255 255 / 52%); }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 5px 18px; }
+.sheet-head h1 { margin: 0; font-size: 27px; font-weight: 600; }
+.sheet-head .icon { border: none; }
+.sheet-head .icon svg { width: 16px; height: 16px; }
+.tabs { display: flex; padding: 0 12px; border-bottom: 1px solid #b5b5b5; }
+.tabs button { flex: 1; padding: 0 5px; border: 0; border-bottom: 2px solid transparent; color: var(--soft); min-height: 42px; }
+.tabs [aria-pressed="true"] { color: var(--ink); border-color: var(--ink); }
+.sheet-body { padding: 20px 18px; }
+h2, h3, legend { font-weight: 600; padding: 0; margin: 0 0 9px; }
+h2, legend { font-size: 21px; } h3 { font-size: 18px; }
+p { margin: 6px 0 12px; overflow-wrap: anywhere; }
+.muted, .note { color: var(--soft); font-size: 16px; line-height: 1.35; }
+.note:empty { display: none; }
+.actions { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+fieldset { border: 0; margin: 0; padding: 0; }
+.levels { display: flex; }
+.levels label { position: relative; flex: 1; min-width: 0; }
+.levels input { position: absolute; opacity: 0; }
+.levels span {
+  display: grid; place-content: center; text-align: center; border: 1px solid var(--edge); min-height: 44px;
+  height: 100%; padding: 3px; font-size: 16px; line-height: 1; cursor: pointer;
+}
+.levels label + label span { border-left: 0; }
+.levels input:checked + span { color: white; background: var(--ink); }
+.levels input:focus-visible + span { outline: 2px dashed #aaa; outline-offset: -4px; }
+#levelInfo { min-height: 2.5em; }
+.saved-list { display: grid; gap: 6px; }
+.saved-list button { text-align: left; overflow-wrap: anywhere; }
+.model-row { border-top: 1px solid #ccc; padding: 14px 0 4px; margin: 14px 0 0; }
+#plannerInfo, #offlineInfo, #accountNotice { margin-top: 10px; }
+#accountForm { display: grid; gap: 6px; }
+#accountForm label { font-size: 16px; }
+#accountForm input { width: 100%; min-height: 42px; padding: 6px 8px; border: 1px solid var(--edge); background: white; border-radius: 0; }
+#accountForm .actions { margin-top: 7px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+@media (max-width: 420px) {
+  .sheet-body { padding: 17px 13px; }
+  .tabs { padding: 0 7px; }
+  .levels span { font-size: 15px; }
+}

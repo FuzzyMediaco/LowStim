@@ -78,7 +78,10 @@ ipcMain.handle("model:plan",async (event,prompt,grammar)=>{
   try{return await withTemporaryFolder(async dir=>{
     const input=path.join(dir,"prompt.txt"), rules=path.join(dir,"recipe.gbnf");
     await Promise.all([fs.writeFile(input,prompt),fs.writeFile(rules,grammar)]);
-    return await run("lowstim-planner",[modelPath(),input,rules],32000);
+    const args=[modelPath(),input,rules];
+    const adapter=path.join(packagedAssets,"lowstim-lora.gguf");
+    if(existsSync(adapter))args.push(adapter);
+    return await run("lowstim-planner",args,65000);
   });}catch{return "";}
   finally{planning=false;}
 });
@@ -103,13 +106,14 @@ ipcMain.handle("voice:transcribe",async (event,audio)=>{
 app.whenReady().then(async ()=>{
   protocol.handle("lowstim",async request=>{
     const url=new URL(request.url);
-    if(url.host!=="app"||!/^[a-z0-9-]+\.(html|js|png|webmanifest)$/.test(url.pathname.slice(1)))return new Response(null,{status:404});
     const name=url.pathname.slice(1);
-    const mime=name.endsWith(".html")?"text/html":name.endsWith(".js")?"text/javascript":
-      name.endsWith(".png")?"image/png":"application/manifest+json";
+    const mimeByExtension={".html":"text/html",".js":"text/javascript",".css":"text/css",".png":"image/png",
+      ".ttf":"font/ttf",".woff2":"font/woff2",".json":"application/json",".webmanifest":"application/manifest+json"};
+    const mime=mimeByExtension[path.extname(name)];
+    if(url.host!=="app"||!mime||!/^(?:fonts\/)?[a-zA-Z0-9_-]+\.[a-z0-9]+$/.test(name))return new Response(null,{status:404});
     try{return new Response(await fs.readFile(path.join(assets,name)),{headers:{
       "Content-Type":mime,
-      "Content-Security-Policy":"default-src 'none'; script-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+      "Content-Security-Policy":"default-src 'none'; script-src 'self'; img-src 'self'; font-src 'self'; style-src 'self' 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
       "X-Content-Type-Options":"nosniff",
     }});}catch{return new Response(null,{status:404});}
   });

@@ -41,11 +41,12 @@ public final class MainActivity extends Activity {
         }
         NATIVE_AVAILABLE = loaded;
     }
-    private static native String generate(String path, String prompt, String grammar);
+    private static native String generate(String path, String prompt, String grammar, String adapter);
     private static native void resetModel();
 
     private WebView web;
     private File model;
+    private String adapterPath;
     private OfflineSpeech speech;
     private TextToSpeech tts;
     private boolean ttsReady;
@@ -76,13 +77,15 @@ public final class MainActivity extends Activity {
                 final Uri uri = request.getUrl();
                 final String path = uri.getPath();
                 if (!"https".equals(uri.getScheme()) || !"slate.appassets.androidplatform.net".equals(uri.getHost())
-                        || path == null || !path.matches("/[a-z0-9-]+\\.(html|js|json|webmanifest|png)"))
+                        || path == null || !path.matches("/(?:fonts/)?[A-Za-z0-9_-]+\\.(html|js|json|webmanifest|png|css|woff2?|ttf)"))
                     return new WebResourceResponse("text/plain", "UTF-8", new ByteArrayInputStream(new byte[0]));
                 try {
                     final String mime = path.endsWith(".html") ? "text/html" :
                             path.endsWith(".js") ? "text/javascript" :
+                            path.endsWith(".css") ? "text/css" : path.endsWith(".woff2") ? "font/woff2" :
+                            path.endsWith(".woff") ? "font/woff" : path.endsWith(".ttf") ? "font/ttf" :
                             path.endsWith(".png") ? "image/png" : "application/json";
-                    return new WebResourceResponse(mime, path.endsWith(".png") ? null : "UTF-8",
+                    return new WebResourceResponse(mime, mime.startsWith("text/") || mime.equals("application/json") ? "UTF-8" : null,
                             getAssets().open(path.substring(1)));
                 } catch (IOException absent) {
                     return new WebResourceResponse("text/plain", "UTF-8", new ByteArrayInputStream(new byte[0]));
@@ -112,6 +115,17 @@ public final class MainActivity extends Activity {
         script("window.slateModelResult?.(" + JSONObject.quote(text) + "," + model.isFile() + ")");
     }
 
+    // Called only on MODEL_WORKER. Copy anew per activity so an app update also updates the adapter.
+    private String sceneAdapter() {
+        if (adapterPath != null) return adapterPath;
+        File destination = new File(getFilesDir(), "lowstim-lora.gguf");
+        try (InputStream input = getAssets().open("lowstim-lora.gguf")) {
+            java.nio.file.Files.copy(input, destination.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            adapterPath = destination.getAbsolutePath();
+        } catch (IOException unavailable) { adapterPath = ""; }
+        return adapterPath;
+    }
+
     public final class DeviceBridge {
         @JavascriptInterface public boolean hasModel() { return NATIVE_AVAILABLE && model.isFile(); }
         @JavascriptInterface public void plan(int id, String prompt, String grammar) {
@@ -120,7 +134,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             MODEL_WORKER.execute(() -> {
-                String output = generate(model.getAbsolutePath(), prompt, grammar);
+                String output = generate(model.getAbsolutePath(), prompt, grammar, sceneAdapter());
                 script("window.slatePlanResult?.(" + id + "," + JSONObject.quote(output) + ")");
             });
         }
@@ -208,7 +222,7 @@ public final class MainActivity extends Activity {
     @Override protected void onStop() {
         super.onStop();
         if (speech != null) speech.cancel();
-        script("if(document.querySelector('#mic').textContent==='Stop')window.slateVoiceResult?.('','Listening stopped.');");
+        script("window.slatePauseVoice?.();");
     }
 
     @Override protected void onDestroy() {

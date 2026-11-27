@@ -1,0 +1,59 @@
+{
+  "weights": {
+    "speech": {
+      "name": "OpenAI Whisper tiny.en Q5_1",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-tiny.en-q5_1.bin",
+      "bytes": 32166155,
+      "sha256": "c77c5766f1cef09b6b7d47f21b546cbddd4157886b3b5d6d4f709e91e66c7c2b"
+    },
+    "planner": {
+      "name": "Qwen2.5 0.5B Instruct Q4_K_M",
+      "url": "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/9217f5db79a29953eb74d5343926648285ec7e67/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+      "bytes": 491400032,
+      "sha256": "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db"
+    }
+  },
+  "runtime": {
+    "model-runtime/wllama/index.js": {
+      "url": "https://cdn.jsdelivr.net/npm/@wllama/wllama@4.0.0/esm/index.min.js",
+      "bytes": 119399,
+      "sha256": "f022676cfcef2f631c86746f0dc5ba422f33cdc3f734286d6d23b492f904e5bf"
+    },
+    "model-runtime/wllama/wllama.wasm": {
+      "url": "https://cdn.jsdelivr.net/npm/@wllama/wllama@4.0.0/esm/wasm/wllama.wasm",
+      "bytes": 10838652,
+      "sha256": "b012436a101ede8c877f2d26644c3181429d4fb8da4fd90c356110d86bfd74a6"
+    },
+    "model-runtime/whisper/index.js": {
+      "url": "https://cdn.jsdelivr.net/npm/@fugood/node-whisper-wasm@1.2.0-rc.2/index.js",
+      "bytes": 56123,
+      "sha256": "d1087bd96db77457618d4c2a12bed7639800c08b30efac94510ce5578cea97d0"
+    },
+    "model-runtime/whisper/worker.js": {
+      "url": "https://cdn.jsdelivr.net/npm/@fugood/node-whisper-wasm@1.2.0-rc.2/worker.js",
+      "bytes": 8875,
+      "sha256": "1eac6fe60e4e669389218150955b90b8f42c6114f567d74a0c1c5710365bad02"
+    },
+    "model-runtime/whisper/wasm/whisper-node.js": {
+      "url": "https://cdn.jsdelivr.net/npm/@fugood/node-whisper-wasm@1.2.0-rc.2/wasm/whisper-node.js",
+      "bytes": 126913,
+      "sha256": "ad01bc7cfcaf4ec99e4ee051b888fa47a2301cbdee8193acfef7235752ab4f7d"
+    },
+    "model-runtime/whisper/wasm/whisper-node.wasm": {
+      "url": "https://cdn.jsdelivr.net/npm/@fugood/node-whisper-wasm@1.2.0-rc.2/wasm/whisper-node.wasm",
+      "bytes": 4568176,
+      "sha256": "222715e3bbf868ff12a24efb7febb389618f27cd6a4dc1886d8f4135908093b9"
+    },
+    "model-runtime/sha256.js": {
+      "url": "https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/sha256.umd.min.js",
+      "bytes": 18616,
+      "sha256": "ed7f5896b41aba98909ab143264c5b2ae5c81abf2e47f08dd2d1c0d02ce623de"
+    }
+  },
+  "adapter": {
+    "path": "model-runtime/wllama/lowstim-lora.gguf",
+    "bytes": 723648,
+    "sha256": "0023310d04f7324992d2fe73548fcc534f309f5d182a2947d8bfd1c2ac086848",
+    "base": "Qwen2.5-0.5B-Instruct"
+  }
+}

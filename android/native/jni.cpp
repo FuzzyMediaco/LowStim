@@ -11,9 +11,9 @@ static std::string chars(JNIEnv *env, jstring input) {
 }
 
 extern "C" JNIEXPORT jstring JNICALL Java_com_doodleforge_slate_MainActivity_generate(
-    JNIEnv *env, jclass, jstring path, jstring prompt, jstring grammar) {
+    JNIEnv *env, jclass, jstring path, jstring prompt, jstring grammar, jstring adapter) {
     try {
-        const auto output = forge_generate(chars(env, path), chars(env, prompt), chars(env, grammar));
+        const auto output = forge_generate(chars(env, path), chars(env, prompt), chars(env, grammar), chars(env, adapter));
         return env->NewStringUTF(output.c_str());
     } catch (...) {
         return env->NewStringUTF("");

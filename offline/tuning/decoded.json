@@ -1,0 +1,18 @@
+{
+  "tuned": {
+    "total": 26,
+    "valid": 26,
+    "actor": 20,
+    "mechanic": 14,
+    "setting": 20,
+    "accent": 11
+  },
+  "stock": {
+    "total": 26,
+    "valid": 26,
+    "actor": 20,
+    "mechanic": 14,
+    "setting": 20,
+    "accent": 8
+  }
+}

@@ -1,0 +1,13 @@
+Language model: Qwen2.5-0.5B-Instruct, Qwen Team. GGUF Q4_K_M supplied by Qwen.
+https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF
+Apache 2.0, included as qwen.txt.
+
+English transcription: OpenAI Whisper tiny.en. GGML Q5_1 quantization from whisper.cpp.
+https://github.com/openai/whisper and https://huggingface.co/ggerganov/whisper.cpp
+MIT license, included as openai-whisper.txt.
+
+Sketch recognition: trained on rasterized strokes from Google Creative Lab's Quick, Draw! Dataset.
+https://github.com/googlecreativelab/quickdraw-dataset
+CC BY 4.0, included as quickdraw-cc-by-4.txt. The sketch classifier is a derived model.
+
+Runtime package notices are included under model-runtime. The pixel font license is under fonts.

@@ -4,26 +4,26 @@ import android.content.Context;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
-import org.json.JSONObject;
-import org.vosk.Model;
-import org.vosk.Recognizer;
+import java.io.InputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.BiConsumer;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 
 final class OfflineSpeech {
     private static final int RATE = 16000, MAX_SAMPLES = RATE * 9;
-    private static final String MODEL = "vosk-model-small-en-us-0.15";
+    private static final String MODEL = "tiny.en-q5_1.bin";
+    private static native String transcribe(String modelPath, short[] samples, int count);
+    private static native void release();
     private final Context context;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private volatile boolean stop, canceled;
     private boolean active;
-    private Model model;
+    private boolean loaded;
 
     OfflineSpeech(Context context) { this.context = context.getApplicationContext(); }
 
@@ -49,37 +49,28 @@ final class OfflineSpeech {
 
     void close() {
         cancel();
-        worker.execute(() -> { if (model != null) model.close(); });
+        worker.execute(() -> { if (loaded) release(); });
         worker.shutdown();
     }
 
-    private File modelDirectory() throws IOException {
-        final File root = new File(context.getFilesDir(), MODEL);
-        final File ready = new File(root, ".ready");
-        if (ready.isFile()) return root;
-        if (!root.mkdirs() && !root.isDirectory()) throw new IOException("Missing model directory");
-        try (ZipInputStream archive = new ZipInputStream(context.getAssets().open("speech-model.zip"))) {
-            for (ZipEntry entry; (entry = archive.getNextEntry()) != null;) {
-                String name = entry.getName();
-                if (!name.startsWith(MODEL + "/") || entry.isDirectory()) continue;
-                final File file = new File(root, name.substring(MODEL.length() + 1));
-                if (!file.getCanonicalPath().startsWith(root.getCanonicalPath() + File.separator))
-                    throw new IOException("Invalid model asset");
-                final File parent = file.getParentFile();
-                if (!parent.mkdirs() && !parent.isDirectory()) throw new IOException("Missing model subfolder");
-                try (FileOutputStream output = new FileOutputStream(file)) {
-                    byte[] bytes = new byte[32 * 1024];
-                    for (int n; (n = archive.read(bytes)) != -1;) output.write(bytes, 0, n);
-                }
-                archive.closeEntry();
+    private File modelFile() throws IOException {
+        File model = new File(context.getFilesDir(), MODEL);
+        if (model.isFile() && model.length() == 32166155) return model;
+        File temporary = File.createTempFile("whisper", ".part", context.getFilesDir());
+        try {
+            try (InputStream input = context.getAssets().open(MODEL); FileOutputStream output = new FileOutputStream(temporary)) {
+                byte[] buffer = new byte[64 * 1024];
+                for (int n; (n = input.read(buffer)) != -1;) output.write(buffer, 0, n);
+                output.getFD().sync();
             }
-        }
-        if (!ready.createNewFile()) throw new IOException("Could not initialize speech assets");
-        return root;
+            if (temporary.length() != 32166155) throw new IOException("Incomplete bundled speech model");
+            Files.move(temporary.toPath(), model.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } finally { temporary.delete(); }
+        return model;
     }
 
     private String recognize() throws Exception {
-        if (model == null) model = new Model(modelDirectory().getAbsolutePath());
+        if (!loaded) { System.loadLibrary("slate_speech"); loaded = true; }
         if (stop) return "";
         final int min = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
         if (min <= 0) throw new IOException("Unsupported microphone format");
@@ -88,23 +79,22 @@ final class OfflineSpeech {
             .setAudioFormat(new AudioFormat.Builder().setChannelMask(AudioFormat.CHANNEL_IN_MONO)
                 .setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(RATE).build())
             .setBufferSizeInBytes(Math.max(min, 8000)).build();
-        try (Recognizer recognizer = new Recognizer(model, RATE)) {
+        final short[] samples = new short[MAX_SAMPLES];
+        int count = 0;
+        try {
             mic.startRecording();
             if (mic.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING)
                 throw new IOException("Microphone did not start");
-            final short[] buffer = new short[1600];
-            for (int samples = 0; !stop && samples < MAX_SAMPLES;) {
-                final int count = mic.read(buffer, 0, buffer.length, AudioRecord.READ_BLOCKING);
-                if (count < 0) throw new IOException("Microphone read failed");
-                samples += count;
-                if (recognizer.acceptWaveForm(buffer, count)) {
-                    final String phrase = new JSONObject(recognizer.getResult()).optString("text").trim();
-                    if (!phrase.isEmpty()) return phrase;
-                }
+            while (!stop && count < MAX_SAMPLES) {
+                int n = mic.read(samples, count, Math.min(1600, MAX_SAMPLES - count), AudioRecord.READ_BLOCKING);
+                if (n < 0) throw new IOException("Microphone read failed");
+                count += n;
             }
-            return new JSONObject(recognizer.getFinalResult()).optString("text").trim();
-        } finally {
-            mic.release();
-        }
+        } finally { mic.release(); }
+        if (canceled || count < RATE / 6) return "";
+        String text = transcribe(modelFile().getAbsolutePath(), samples, count);
+        if (text == null) throw new IOException("Whisper could not transcribe this recording");
+        text = text.trim();
+        return text.matches("^(\\[.*?\\]|\\(.*?\\))$") ? "" : text;
     }
 }

@@ -1,222 +1,462 @@
 "use strict";
 (() => {
-  const $=id=>document.getElementById(id), canvas=$("surface"), c=canvas.getContext("2d",{alpha:false});
-  const android=globalThis.SlateDevice;
-  const motion=matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const storageKey="doodle-forge-slate-scenes-v2";
-  let size,scene=null,strokes=[],stroke=null,pointer=null,timer=null,started=0,busy=false,requestId=0,lastFrame=0;
-  let speech=null,listening=false,opening=false,stash=[],lastPlanner="";
-  try{const list=JSON.parse(localStorage.getItem(storageKey));if(Array.isArray(list))stash=list.filter(Forge.valid)}catch{}
-  const notice=$("notice"),bar=$("bar"),input=$("idea");
-  function controls(show,focus=false){
-    bar.hidden=!show;
-    $("more").hidden=show||!scene||busy;
-    if(focus)input.focus();
+  const $ = id => document.getElementById(id);
+  const canvas = $("surface"), ctx = canvas.getContext("2d");
+  const film = document.createElement("canvas");
+  film.width = World.W; film.height = World.H;
+  const ink = film.getContext("2d");
+  const device = globalThis.SlateDevice;
+  const models = globalThis.LowStimModels, accounts = globalThis.LowStimAccount;
+  const input = $("idea"), popover = $("popover");
+  const blankLabel = canvas.getAttribute("aria-label");
+  let size, scene = null, record = null, lastPlanner = "", strokes = [], transition = null;
+  let drawing = null, touch = null, lastTap = null, anchor = null;
+  let sketchTimer, holdTimer, feedbackTimer, frameId = 0, previousTime = 0;
+  let generation = 0, busy = false, saved = false, saving = false, planController = null;
+  let voiceSession = null, nativeVoice = null, nativePlan = null, activeKey = null;
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  const studio = createStudioMenu({
+    device, current: () => scene, lastPlanner: () => lastPlanner,
+    onNew: newSlate, onRefine: () => openChooser(center(), true), onOpenRecord: showSaved,
+    onClose: () => { if (popover.hidden) canvas.focus({preventScroll: true}); renderSoon(); }
+  });
+
+  function feedback(text = "", action = null, delay = 0) {
+    clearTimeout(feedbackTimer);
+    $("notice").textContent = text;
+    $("feedback").hidden = !text;
+    const button = $("feedbackAction");
+    button.hidden = !action; button.textContent = action?.label || ""; button.onclick = action?.run || null;
+    if (delay) feedbackTimer = setTimeout(() => feedback(), delay);
   }
-  function say(message,buttons=[]){
-    notice.replaceChildren();
-    if(message){const p=document.createElement("p");p.textContent=message;notice.append(p);}
-    for(const [label,action] of buttons){const b=document.createElement("button");b.type="button";b.textContent=label;b.onclick=action;notice.append(b);}
-    notice.hidden=!notice.childNodes.length;
+  const errorText = error => error?.message || "That action could not finish. Please try again.";
+  function bindTool(name, fn) { $(name).addEventListener("click", fn); }
+  const center = () => ({x: size.width / 2, y: size.height / 2});
+  function placePopover() {
+    if (!anchor || popover.hidden) return;
+    const viewport = window.visualViewport;
+    const left = viewport?.offsetLeft || 0, top = viewport?.offsetTop || 0;
+    const width = viewport?.width || innerWidth, height = viewport?.height || innerHeight;
+    const w = popover.offsetWidth, h = popover.offsetHeight;
+    const preferredTop = anchor.y > top + h + 28 ? anchor.y - h - 14 : anchor.y + 16;
+    const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
+    popover.style.left = Math.round(clamp(anchor.x - w / 2, left + 6, left + width - w - 6)) + "px";
+    popover.style.top = Math.round(clamp(preferredTop, top + 6, top + height - h - 6)) + "px";
   }
-  function clearTimer(){clearTimeout(timer);timer=null}
-  function newSlate(){
-    requestId++;clearTimer();
-    if(listening){if(android)android.stopVoice();else speech?.abort();setListening(false);}
-    strokes=[];stroke=null;scene=null;busy=false;started=0;input.value="";say("");controls(false);$("collection").hidden=true;
-    canvas.setAttribute("aria-label","Blank slate. Drag to draw. Tap or press Enter to type or speak.");
+  function tools(view, at) {
+    clearTimeout(sketchTimer);
+    if (at) anchor = at;
+    for (const name of ["chooser", "bar", "voice"]) $(name).hidden = name !== view;
+    popover.hidden = !view;
+    placePopover();
   }
-  function localVoice(line){
-    if(android){android.say(line);return}
-    if(!("speechSynthesis" in window))return;
-    const voice=speechSynthesis.getVoices().find(v=>v.localService&&v.lang.startsWith("en"));
-    if(voice){const utterance=new SpeechSynthesisUtterance(line);utterance.voice=voice;speechSynthesis.speak(utterance);}
+  function openChooser(at, keyboardNavigation = false) {
+    if (busy || voiceSession || studio.openNow) return;
+    input.blur(); feedback(); tools("chooser", at); lastTap = null;
+    if (keyboardNavigation) $("mic").focus({preventScroll: true});
   }
-  function resize(){
-    const r=canvas.getBoundingClientRect(),dpr=Math.min(2,devicePixelRatio||1);
-    size={width:r.width,height:r.height,scale:Math.min(r.width/World.W,r.height/World.H)*.97};
-    canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);
-    c.setTransform(dpr,0,0,dpr,0,0);
-    size.x=(r.width-World.W*size.scale)/2;size.y=(r.height-World.H*size.scale)/2;
+  function openType(at) {
+    if (busy || voiceSession) return;
+    feedback(); tools("bar", at);
+    input.placeholder = scene ? "Change this scene…" : "Make something…";
+    input.focus({preventScroll: true});
+    placePopover();
   }
-  function frame(time){
-    if(!size)resize();
-    const {width,height,scale,x,y}=size,dt=Math.min(.05,Math.max(0,(time-lastFrame)/1000));lastFrame=time;
-    c.fillStyle="#fff";c.fillRect(0,0,width,height);
-    if(scene){
-      if(!busy&&$("collection").hidden)World.step(scene,dt);
-      c.save();c.translate(x,y);c.scale(scale,scale);c.beginPath();c.rect(0,0,World.W,World.H);c.clip();World.paint(c,scene);c.restore();
-    }
-    if(strokes.length){
-      c.strokeStyle="#000";c.lineWidth=3.5;c.lineCap="round";c.lineJoin="round";
-      for(const p of strokes){
-        c.beginPath();c.moveTo(p[0][0]*width,p[0][1]*height);
-        for(const [px,py] of p.slice(1))c.lineTo(px*width,py*height);
-        if(p.length===1)c.lineTo(p[0][0]*width+.01,p[0][1]*height+.01);
-        c.stroke();
+  function openMenu(tab) {
+    if (busy || voiceSession) return;
+    resetPointer(); input.blur(); tools(null); feedback(); studio.open(tab);
+  }
+  function resize() {
+    const r = canvas.getBoundingClientRect();
+    const density = Math.min(3, window.devicePixelRatio || 1);
+    canvas.width = Math.max(1, Math.round(r.width * density));
+    canvas.height = Math.max(1, Math.round(r.height * density));
+    ctx.imageSmoothingEnabled = false;
+    // The launch pad stays in frame while portrait players see a larger rocket.
+    // Puzzles and courses retain their full width so every target can be reached.
+    const closeUp = scene?.mechanic === "launch" && r.height > r.width * 1.3;
+    const zoom = closeUp ? 1.55 : 1;
+    const scale = Math.min((canvas.width - 8 * density) * zoom / World.W, (canvas.height - 8 * density) / World.H);
+    const w = Math.max(1, Math.floor(World.W * scale)), h = Math.max(1, Math.floor(World.H * scale));
+    const x = closeUp ? Math.min(0, Math.max(canvas.width - w, canvas.width / 2 - w * scene.homeX / World.W)) : (canvas.width - w) / 2;
+    size = {width: r.width, height: r.height, w, h, inkPixel: Math.max(2, Math.round(2 * density)),
+      x: Math.floor(x), y: Math.floor((canvas.height - h) / 2)};
+    const captionTop = Math.min(r.height - 48, (size.y + h) * r.height / canvas.height + 8);
+    $("sceneHint").style.top = Math.round(Math.max(4, captionTop)) + "px";
+    placePopover(); renderSoon();
+  }
+  const point = e => ({x: e.clientX, y: e.clientY});
+  function worldPoint(p) {
+    return {
+      x: (p.x * canvas.width / size.width - size.x) * World.W / size.w,
+      y: (p.y * canvas.height / size.height - size.y) * World.H / size.h
+    };
+  }
+  const onWorld = p => p.x >= 0 && p.y >= 0 && p.x < World.W && p.y < World.H;
+  function normalized(p) { return [p.x / size.width, p.y / size.height]; }
+  function drawLine(line, transform = null) {
+    // Integer steps keep the ink's chunky corners at every viewport size.
+    const unit = size.inkPixel;
+    let previous = null;
+    for (const [x, y] of line) {
+      const nx = transform ? x * transform.scale + transform.dx : x;
+      const ny = transform ? y * transform.scale + transform.dy : y;
+      const px = Math.round(nx * canvas.width / unit), py = Math.round(ny * canvas.height / unit);
+      if (previous) {
+        const [ax, ay] = previous, count = Math.max(Math.abs(px - ax), Math.abs(py - ay));
+        for (let n = 1; n < count; n++) {
+          ctx.fillRect(unit * Math.round(ax + (px - ax) * n / count), unit * Math.round(ay + (py - ay) * n / count), unit * 2, unit * 2);
+        }
       }
+      ctx.fillRect(unit * px, unit * py, unit * 2, unit * 2);
+      previous = [px, py];
     }
-    if(busy){
-      const mx=width*.5,my=height*.5;
-      c.fillStyle="#fff";c.fillRect(mx-87,my-59,174,123);
-      World.spinup(c,mx-11,my-5,motion?0:(time-started)/1000);
-      c.fillStyle="#000";c.font="16px system-ui";c.textAlign="center";c.fillText("You got it!",mx,my+44);c.textAlign="left";
+  }
+  function paint(time) {
+    frameId = 0;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const progress = transition ? Math.min(1, Math.max(0, (time - transition.start) / 560)) : 1;
+    if (progress === 1) transition = null;
+    if (scene) {
+      const dt = previousTime ? Math.min(0.05, (time - previousTime) / 1000) : 0;
+      if (!busy && !studio.openNow && !document.hidden) {
+        World.step(scene, dt * (reducedMotion.matches && scene.recipe.activity === "animation" ? 0.45 : 1));
+      }
+      const hint = World.hint?.(scene) || "";
+      const goal = World.statusLabel?.(scene) || "";
+      if ($("sceneInstruction").textContent !== hint) $("sceneInstruction").textContent = hint;
+      if ($("sceneGoal").textContent !== goal) $("sceneGoal").textContent = goal;
+      $("sceneHint").hidden = busy || (!hint && !goal);
+      World.paint(ink, scene);
+      ctx.globalAlpha = progress;
+      ctx.drawImage(film, size.x, size.y, size.w, size.h);
+      ctx.globalAlpha = 1;
     }
-    requestAnimationFrame(frame);
-  }
-  function drawPoint(e){
-    const r=canvas.getBoundingClientRect();
-    return [Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))];
-  }
-  function scenePoint(e){
-    const [nx,ny]=drawPoint(e);
-    return {x:(nx*size.width-size.x)/size.scale,y:(ny*size.height-size.y)/size.scale};
-  }
-  canvas.onpointerdown=e=>{
-    if(busy||listening||pointer||e.button!==0)return;
-    clearTimer();
-    pointer={id:e.pointerId,origin:drawPoint(e),start:scenePoint(e)};
-    canvas.setPointerCapture(e.pointerId);
-  };
-  canvas.onpointermove=e=>{
-    if(pointer?.id!==e.pointerId)return;
-    if(scene){
-      if(scene.recipe.activity==="dodge"&&!scene.over)World.interact(scene,scenePoint(e));
-      return;
-    }
-    const p=drawPoint(e);
-    if(!stroke){
-      if(Math.hypot((p[0]-pointer.origin[0])*size.width,(p[1]-pointer.origin[1])*size.height)<4)return;
-      stroke=[pointer.origin];strokes.push(stroke);say("");controls(true);
-    }
-    if(stroke.length<3000)stroke.push(p);
-  };
-  canvas.onpointerup=e=>{
-    if(pointer?.id!==e.pointerId)return;
-    if(scene){
-      const p=scenePoint(e);World.interact(scene,p,{x:p.x-pointer.start.x,y:p.y-pointer.start.y});
-    }else if(stroke){
-      stroke=null;
-      timer=setTimeout(()=>make(),1700);
-    }else if(strokes.length){
-      controls(true,true);
-    }else if(!bar.hidden&&document.activeElement!==input){
-      controls(false);say("");
-    }else controls(true,true);
-    pointer=null;
-  };
-  canvas.onlostpointercapture=()=>{
-    if(stroke){stroke=null;timer=setTimeout(()=>make(),1700);}
-    pointer=null;
-  };
-  function handleKeys(e){
-    if(e.key==="Escape"){controls(false);say("");return}
-    if(scene&&[" ","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)){e.preventDefault();World.interact(scene,{y:scene.y+(e.key==="ArrowUp"?-21:e.key==="ArrowDown"?21:0)},{x:e.key==="ArrowLeft"?-40:e.key==="ArrowRight"?40:0});return}
-    if(e.key==="Enter"||(e.key.length===1&&!e.ctrlKey&&!e.metaKey&&!e.altKey)){e.preventDefault();controls(true,true);if(e.key.length===1)input.value+=e.key;}
-  }
-  canvas.onkeydown=handleKeys;
-  document.addEventListener("keydown",e=>{if(e.target===document.body)handleKeys(e);});
-  input.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing){e.preventDefault();make();}});
-  bar.onsubmit=e=>{e.preventDefault();make()};
-  input.onfocus=clearTimer;
-  $("more").onclick=()=>{controls(true,true);say("")};
-  $("new").onclick=newSlate;
-  $("close").onclick=()=>{$("collection").hidden=true};
-  $("menu").onclick=()=>{
-    clearTimer();input.blur();$("collection").hidden=false;$("saved").replaceChildren();
-    for(const recipe of stash){const b=document.createElement("button");b.type="button";b.textContent=recipe.subject+" · "+recipe.setting;b.onclick=()=>{$("collection").hidden=true;showScene(recipe)};$("saved").append(b);}
-    if(!stash.length)$("saved").textContent="Your creations appear here after you make them.";
-    if(android){
-      $("model").hidden=false;$("modelInfo").hidden=false;
-      $("modelInfo").textContent=android.hasModel()?("Qwen is available on this device."+(lastPlanner?" Last scene: "+lastPlanner+".":"")):"Import the Qwen2.5 Instruct GGUF to enable local AI planning.";
-    }
-  };
-  $("model").onclick=()=>android.importModel();
-  function showScene(recipe){
-    strokes=[];stroke=null;scene=World.start(recipe);busy=false;
-    canvas.setAttribute("aria-label",recipe.subject+" in "+recipe.setting+". Interactive "+recipe.activity+".");
-    input.value="";input.blur();controls(false);say("");
-  }
-  function save(recipe){
-    stash=[recipe,...stash.filter(item=>JSON.stringify(item)!==JSON.stringify(recipe))];
-    try{localStorage.setItem(storageKey,JSON.stringify(stash));}catch{say("Storage is full. This scene is available until you close the slate.");}
-  }
-  function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
-  function plan(idea,label,prior,id){
-    if(!android?.hasModel())return Promise.resolve(null);
-    return new Promise(resolve=>{
-      const timeout=setTimeout(()=>{delete window.slatePlanResult;resolve(null)},35000);
-      window.slatePlanResult=(received,value)=>{
-        if(received!==id)return;
-        clearTimeout(timeout);delete window.slatePlanResult;
-        try{const result=JSON.parse(value);resolve(Forge.valid(result)?result:null);}catch{resolve(null);}
+    ctx.fillStyle = "#161616";
+    if (transition) {
+      const ease = progress * progress * (3 - 2 * progress);
+      const endX = (size.x + size.w * transition.actorX / World.W) / canvas.width;
+      const endY = (size.y + size.h * transition.actorY / World.H) / canvas.height;
+      const scale = 1 + (transition.targetScale - 1) * ease;
+      const transform = {
+        scale,
+        dx: (endX - transition.cx) * ease + transition.cx * (1 - scale),
+        dy: (endY - transition.cy) * ease + transition.cy * (1 - scale)
       };
-      android.plan(id,Forge.modelPrompt(idea,label,prior),Forge.gbnf());
+      ctx.globalAlpha = 1 - progress;
+      for (const line of transition.lines) drawLine(line, transform);
+      ctx.globalAlpha = 1;
+    }
+    for (const stroke of strokes) drawLine(stroke);
+    previousTime = time;
+    if (scene && !studio.openNow && !document.hidden && !busy) renderSoon();
+  }
+  function renderSoon() { if (!frameId) frameId = requestAnimationFrame(paint); }
+  function setSaveIcon() {
+    const label = saved ? "Creation saved" : "Save creation";
+    $("save").setAttribute("aria-label", label); $("save").title = label;
+    $("save").querySelector("use").setAttribute("href", saved ? "#i-check" : "#i-save");
+    $("save").disabled = saving || saved;
+  }
+  function resetPointer() {
+    clearTimeout(holdTimer);
+    if (touch?.playing && scene) World.cancel(scene);
+    const old = touch;
+    touch = null; drawing = null; activeKey = null;
+    if (old && canvas.hasPointerCapture(old.id)) canvas.releasePointerCapture(old.id);
+  }
+  function newSlate() {
+    generation++; busy = false; cancelVoice(); stopPlan(); resetPointer();
+    clearTimeout(sketchTimer); lastTap = null;
+    scene = null; transition = null; record = null; saved = false; saving = false; strokes = []; input.value = "";
+    $("sceneTools").hidden = true; $("sceneHint").hidden = true; resize();
+    canvas.setAttribute("aria-label", blankLabel);
+    input.blur(); tools(null); feedback(); previousTime = 0; renderSoon();
+  }
+  function sketchTransition(lines) {
+    if (!lines.length || reducedMotion.matches) return null;
+    let left = 1, top = 1, right = 0, bottom = 0;
+    for (const line of lines) for (const [x, y] of line) {
+      left = Math.min(left, x); top = Math.min(top, y);
+      right = Math.max(right, x); bottom = Math.max(bottom, y);
+    }
+    const span = Math.max((right - left) * canvas.width, (bottom - top) * canvas.height, 1);
+    return {lines, start: performance.now(), cx: (left + right) / 2, cy: (top + bottom) / 2,
+      actorX: scene.x ?? World.W / 2, actorY: scene.y ?? World.H / 2,
+      targetScale: Math.min(1.25, size.w * 0.13 / span)};
+  }
+  function showRecipe(recipe, item, alreadySaved) {
+    resetPointer();
+    scene = World.start(recipe); scene.domHints = true; resize();
+    transition = !alreadySaved ? sketchTransition(strokes) : null;
+    strokes = []; input.value = ""; input.blur(); tools(null);
+    record = item; saved = alreadySaved; saving = false; setSaveIcon(); $("sceneTools").hidden = false;
+    const title = record.title || recipe.name || recipe.subject;
+    canvas.setAttribute("aria-label", title + ". " + (World.hint?.(scene) || "Interactive scene.") + " Open the slate menu to change it.");
+    feedback(); previousTime = 0; renderSoon();
+  }
+  function showSaved(item) {
+    generation++; busy = false;
+    showRecipe(item.recipe, item, true);
+  }
+  async function saveCurrent() {
+    if (!record || saved || saving) return;
+    if (!accounts) { feedback("Storage could not open. Keep this slate open and try again."); return; }
+    const item = record;
+    saving = true; setSaveIcon();
+    try {
+      const result = await accounts.save(item);
+      if (record !== item) return;
+      saved = true;
+      feedback(result.location === "cloud" ? "Saved to your account." :
+        result.location === "pending" ? "Saved on this device. Account sync is pending." : "Saved on this device.", null, 3000);
+    } catch (error) { if (record === item) feedback(errorText(error)); }
+    finally { if (record === item) { saving = false; setSaveIcon(); } }
+  }
+
+  function queueSketch() {
+    if (strokes.length && !scene && !studio.openNow && popover.hidden)
+      sketchTimer = setTimeout(() => make(), 1450);
+  }
+  function endTouch() {
+    clearTimeout(holdTimer);
+    const old = touch;
+    touch = null; drawing = null;
+    if (old && canvas.hasPointerCapture(old.id)) canvas.releasePointerCapture(old.id);
+  }
+  canvas.addEventListener("contextmenu", e => e.preventDefault());
+  canvas.addEventListener("pointerdown", e => {
+    if (e.button !== 0 || touch || busy || voiceSession || studio.openNow) return;
+    const at = point(e), wp = worldPoint(at);
+    canvas.dataset.pointing = "yes";
+    clearTimeout(sketchTimer); clearTimeout(holdTimer);
+    const dismissing = !popover.hidden;
+    if (dismissing) { input.blur(); tools(null); }
+    feedback();
+    canvas.focus({preventScroll: true});
+    touch = {id: e.pointerId, origin: at, moved: false, held: false, playing: Boolean(scene && onWorld(wp)), dismissing};
+    canvas.setPointerCapture(e.pointerId);
+    if (touch.playing) {
+      transition = null;
+      World.press(scene, wp);
+    } else {
+      holdTimer = setTimeout(() => {
+        if (touch?.id !== e.pointerId || touch.moved) return;
+        touch.held = true; openChooser(at);
+      }, 510);
+    }
+  });
+  canvas.addEventListener("pointermove", e => {
+    if (touch?.id !== e.pointerId || touch.held) return;
+    if (touch.playing) { World.move(scene, worldPoint(point(e))); return; }
+    if (scene) return;
+    const at = point(e);
+    if (!touch.moved) {
+      if (Math.hypot(at.x - touch.origin.x, at.y - touch.origin.y) < 4) return;
+      touch.moved = true; lastTap = null; clearTimeout(holdTimer);
+      drawing = [normalized(touch.origin)]; strokes.push(drawing); tools(null);
+    }
+    const samples = e.getCoalescedEvents?.();
+    for (const sample of samples?.length ? samples : [e]) {
+      if (drawing.length < 6000) drawing.push(normalized(point(sample)));
+    }
+    renderSoon();
+  });
+  canvas.addEventListener("pointerup", e => {
+    if (touch?.id !== e.pointerId) return;
+    const at = point(e), old = touch;
+    if (old.playing) { World.release(scene, worldPoint(at)); endTouch(); return; }
+    endTouch();
+    if (old.held) return;
+    if (!old.moved && !old.dismissing) {
+      const now = performance.now();
+      if (lastTap && now - lastTap.time < 380 && Math.hypot(at.x - lastTap.x, at.y - lastTap.y) < 30) {
+        openChooser(at);
+        return;
+      }
+      lastTap = {...at, time: now};
+    }
+    queueSketch();
+  });
+  function cancelTouch(e) {
+    if (!touch || (e?.pointerId != null && e.pointerId !== touch.id)) return;
+    resetPointer(); queueSketch();
+  }
+  canvas.addEventListener("pointercancel", cancelTouch);
+  canvas.addEventListener("lostpointercapture", cancelTouch);
+
+  function stopPlan() {
+    planController?.abort(); planController = null;
+    if (!nativePlan) return;
+    clearTimeout(nativePlan.timer); nativePlan.resolve(null); nativePlan = null;
+  }
+  window.slatePlanResult = (received, value) => {
+    if (!nativePlan || nativePlan.id !== Number(received)) return;
+    const pending = nativePlan; nativePlan = null;
+    clearTimeout(pending.timer); pending.resolve(value);
+  };
+  function callDevice(id, prompt, grammar) {
+    return new Promise(resolve => {
+      nativePlan = {id, resolve, timer: setTimeout(stopPlan, 90000)};
+      try { device.plan(id, prompt, grammar); }
+      catch { stopPlan(); }
     });
   }
-  async function make(override){
-    clearTimer();
-    if(busy||listening||stroke)return;
-    const idea=input.value.trim(),prior=scene?.recipe??null,hadSketch=strokes.length>0;
-    if(!idea&&!hadSketch&&!override){controls(true,true);return}
-    const results=override?[]:Forge.classify(strokes.map(line=>line.map(([x,y])=>[x*size.width,y*size.height])));
-    const best=results[0];
-    if(!override&&!idea&&hadSketch&&(!best||best.p<.57||(results[1]&&best.p-results[1].p<.19))){
-      controls(true);
-      const candidates=results.filter(item=>item.p>.035).map(item=>item.label);
-      if(!candidates.length)candidates.push("boat","monster");
-      say("What did you draw?",[...candidates.map(label=>[label,()=>make(label)]),["Something else",()=>{say("");controls(true,true)}],["Keep drawing",()=>say("")]]);
+  async function make() {
+    clearTimeout(sketchTimer);
+    if (busy || voiceSession || drawing) return;
+    const idea = input.value.trim(), prior = scene?.recipe || null;
+    if (!idea && !strokes.length) { openType(anchor || center()); return; }
+    const points = strokes.map(line => line.map(([x, y]) => [x * size.width, y * size.height]));
+    const sketch = points.length ? Forge.sketchLabel(points) : "";
+    const options = {level: studio.level, seed: Forge.newSeed()};
+    const id = ++generation;
+    busy = true; input.blur(); tools(null); $("sceneTools").hidden = true; $("sceneHint").hidden = true;
+    feedback("Making your creation…", {label: "Cancel", run: () => {
+      generation++; busy = false; stopPlan(); feedback(); $("sceneTools").hidden = !scene; renderSoon();
+    }});
+    let plan = null, failed = false;
+    try {
+      const available = device ? device.hasModel() : (await models?.status())?.planner;
+      if (generation !== id) return;
+      if (available) {
+        const prompt = Forge.modelPrompt(idea, sketch, prior, options), grammar = Forge.gbnf(idea, sketch, prior, options);
+        planController = new AbortController();
+        const value = device ? await callDevice(id, prompt, grammar) : await models.plan(prompt, grammar, planController.signal);
+        const result = typeof value === "string" ? JSON.parse(value) : value;
+        if (Forge.validPlan(result)) plan = result;
+        else failed = true;
+      }
+    } catch { failed = true; }
+    if (generation !== id) return;
+    planController = null;
+    try {
+      const recipe = Forge.recipe(idea, sketch, prior, {...options, plan});
+      const key = globalThis.crypto.randomUUID ? crypto.randomUUID() : "scene-" + Date.now().toString(36) + "-" + options.seed.toString(36);
+      lastPlanner = plan ? "local Qwen" : "the built-in planner";
+      busy = false;
+      showRecipe(recipe, {id: key, title: recipe.name || recipe.subject, recipe}, false);
+      if (!prior) Forge.remember?.(idea, sketch, recipe);
+      if (failed) feedback("The local model was unavailable. The built-in planner made this creation.", null, 5000);
+    } catch (error) {
+      busy = false; $("sceneTools").hidden = !scene;
+      feedback(errorText(error), {label: "Try again", run: make});
+    }
+  }
+
+  function finishVoice(session, phrase, error) {
+    if (nativeVoice === session) nativeVoice = null;
+    if (voiceSession !== session) return;
+    voiceSession = null; tools(null);
+    if (error || !phrase?.trim()) {
+      feedback(error || "No words came through.", {label: "Type instead", run: () => openType(anchor || center())});
       return;
     }
-    const label=override||best?.label||"";
-    if(!android?.hasModel()&&idea&&!prior&&!label&&!Forge.matches(idea)){
-      say("Tell me what to make, like a pirate ship, a cat, or a rocket.");controls(true,true);return;
-    }
-    busy=true;started=performance.now();const id=++requestId;
-    input.blur();controls(false);say("");localVoice("You got it!");
-    const fallback=Forge.recipe(idea,label,prior);
-    const [generated]=await Promise.all([plan(idea,label,prior,id),sleep(motion?240:800)]);
-    if(id!==requestId)return;
-    const recipe=generated||fallback;
-    lastPlanner=generated?"Qwen":"built-in planner";
-    showScene(recipe);save(recipe);
+    input.value = phrase.trim().slice(0, input.maxLength);
+    make();
   }
-  function setListening(active){
-    listening=active;$("mic").textContent=active?"Stop":"Mic";$("mic").setAttribute("aria-label",active?"Stop listening":"Speak");
-  }
-  window.slateVoiceResult=(phrase,error)=>{
-    setListening(false);
-    if(error){say(error);return;}
-    if(!phrase){say("I didn’t hear an idea. Try again.");return;}
-    input.value=phrase.slice(0,200);say("");make();
+  window.slateVoiceResult = (phrase, error) => {
+    if (nativeVoice) finishVoice(nativeVoice, phrase, error);
   };
-  window.slateModelResult=(message,available)=>{
-    $("modelInfo").textContent=message;
-    $("model").disabled=false;
-    if(!available)$("modelInfo").removeAttribute("aria-live");
+  window.slatePauseVoice = () => {
+    if (nativeVoice) finishVoice(nativeVoice, "", "Listening stopped.");
   };
-  async function speak(){
-    clearTimer();
-    if(busy||opening)return;
-    if(listening){if(android)android.stopVoice();else speech.stop();return;}
-    if(android){input.blur();setListening(true);say("Listening…");android.listen();return;}
-    const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!Recognition||!("processLocally" in Recognition.prototype)||typeof Recognition.available!=="function"){
-      say("Offline speech is available in the Android app. You can type or draw here.");return;
-    }
-    opening=true;
-    try{
-      const supported=await Recognition.available({langs:["en-US"],processLocally:true});
-      if(supported!=="available"){say("This browser’s English speech pack is unavailable. You can type or draw here.");return;}
-      speech=new Recognition();speech.lang="en-US";speech.processLocally=true;
-      speech.onresult=e=>window.slateVoiceResult(e.results[0][0].transcript,"");
-      speech.onerror=()=>window.slateVoiceResult("","The browser couldn’t hear you. Try again or type.");
-      speech.onend=()=>{if(listening)setListening(false)};
-      input.blur();speech.start();setListening(true);say("Listening…");
-    }catch{say("Offline speech is unavailable here. You can type or draw.")}
-    finally{opening=false;}
+  async function beginVoice() {
+    if (busy || voiceSession) return;
+    const session = {active: false, stopping: false};
+    voiceSession = session;
+    feedback(); tools("voice", anchor || center());
+    $("voiceInfo").textContent = "Opening mic…"; $("stopVoice").disabled = true;
+    try {
+      if (device) {
+        if (nativeVoice) throw new Error("The last recording is finishing. Try again in a moment.");
+        nativeVoice = session;
+        device.listen();
+      } else {
+        const status = await models?.status();
+        if (voiceSession !== session) return;
+        if (!status?.speech) {
+          voiceSession = null; tools(null);
+          feedback("Add Whisper to use the microphone offline.", {label: "Speech setup", run: () => openMenu("offline")});
+          return;
+        }
+        await models.listen((text, error) => finishVoice(session, text, error));
+      }
+      if (voiceSession !== session) {
+        if (session.cancelled && !device) await models?.stopVoice();
+        return;
+      }
+      session.active = true;
+      $("voiceInfo").textContent = "Listening…"; $("stopVoice").disabled = false;
+    } catch (error) { finishVoice(session, "", errorText(error)); }
   }
-  $("mic").onclick=speak;
-  window.addEventListener("resize",resize);resize();requestAnimationFrame(frame);
-  if(!android&&location.protocol==="https:"&&"serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
+  async function stopVoice() {
+    const session = voiceSession;
+    if (!session?.active || session.stopping) return;
+    session.stopping = true;
+    $("voiceInfo").textContent = "Transcribing…"; $("stopVoice").disabled = true;
+    try { if (device) device.stopVoice(); else await models.stopVoice(); }
+    catch (error) { finishVoice(session, "", errorText(error)); }
+  }
+  function cancelVoice() {
+    const session = voiceSession;
+    if (!session) return;
+    voiceSession = null; session.cancelled = true;
+    if (session.active && !session.stopping) {
+      try {
+        const stopped = device ? device.stopVoice() : models?.stopVoice();
+        Promise.resolve(stopped).catch(() => {});
+      } catch {}
+    }
+    tools(null); feedback();
+  }
+
+  function keyboardPoint() {
+    const x = scene?.x ?? World.W / 2, y = scene?.y ?? World.H / 2;
+    return {x, y};
+  }
+  function keyboardDown(e) {
+    if (e.target !== canvas && e.target !== document.body) return;
+    if (busy || voiceSession || studio.openNow || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (scene && (e.key === " " || e.key.startsWith("Arrow"))) {
+      e.preventDefault();
+      if (activeKey && activeKey !== e.key) { World.release(scene, keyboardPoint()); activeKey = null; }
+      const p = keyboardPoint();
+      if (!activeKey) { World.press(scene, p); activeKey = e.key; }
+      if (e.key !== " ") {
+        const diff = {ArrowLeft: [-12, 0], ArrowRight: [12, 0], ArrowUp: [0, -12], ArrowDown: [0, 12]}[e.key];
+        if (diff) World.move(scene, {x: p.x + diff[0], y: p.y + diff[1]});
+      }
+      return;
+    }
+    if (e.key === "Enter") { e.preventDefault(); openChooser(center(), true); }
+    else if (e.key.length === 1 && !e.isComposing) {
+      e.preventDefault(); openType(center()); input.value += e.key;
+    }
+  }
+  document.addEventListener("keydown", e => {
+    delete canvas.dataset.pointing;
+    if (e.key === "Escape" && !studio.openNow) {
+      if (voiceSession) cancelVoice();
+      else { input.blur(); tools(null); feedback(); }
+      queueSketch(); return;
+    }
+    keyboardDown(e);
+  });
+  document.addEventListener("keyup", e => {
+    if (activeKey !== e.key || !scene) return;
+    World.release(scene, keyboardPoint()); activeKey = null;
+  });
+  window.addEventListener("blur", () => { if (scene) World.cancel(scene); activeKey = null; });
+  document.addEventListener("visibilitychange", () => { previousTime = 0; if (!document.hidden) renderSoon(); });
+  bindTool("mic", beginVoice); bindTool("stopVoice", stopVoice); bindTool("cancelVoice", cancelVoice);
+  bindTool("keyboard", () => openType(anchor || center()));
+  bindTool("cancelType", () => { input.blur(); tools(null); canvas.focus({preventScroll: true}); queueSketch(); });
+  bindTool("menu", () => openMenu()); bindTool("more", () => openMenu()); bindTool("save", saveCurrent);
+  $("bar").onsubmit = e => { e.preventDefault(); make(); };
+  input.onkeydown = e => { if (e.isComposing && e.key === "Enter") e.stopPropagation(); };
+  window.addEventListener("resize", resize);
+  window.visualViewport?.addEventListener("resize", placePopover);
+  window.visualViewport?.addEventListener("scroll", placePopover);
+  resize(); setSaveIcon();
 })();

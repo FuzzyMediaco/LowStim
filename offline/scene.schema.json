@@ -1,87 +1,219 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "LowStim scene",
-  "type": "object",
-  "properties": {
-    "activity": {
-      "type": "string",
-      "enum": [
-        "animation",
-        "dodge",
-        "jump",
-        "pet"
+  "title": "LowStim saved scene",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "const": 2
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 220
+        },
+        "level": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "extra high",
+            "max"
+          ]
+        },
+        "activity": {
+          "enum": [
+            "animation",
+            "game"
+          ]
+        },
+        "setting": {
+          "enum": [
+            "ocean",
+            "island",
+            "space",
+            "sky",
+            "road",
+            "forest",
+            "garden",
+            "room",
+            "underwater",
+            "mountains"
+          ]
+        },
+        "prop": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "motion": {
+          "type": "string"
+        },
+        "styleId": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1299
+        },
+        "mechanic": {
+          "enum": [
+            "assemble",
+            "dodge",
+            "launch",
+            "collect",
+            "match",
+            "guide",
+            "balance",
+            "catch",
+            "stack",
+            "explore",
+            "race",
+            "steer",
+            "cannon",
+            "drift",
+            "bloom",
+            "march",
+            "trail",
+            "flock",
+            "unfurl",
+            "tumble",
+            "pulse",
+            "shimmer",
+            "sway",
+            "rise",
+            "swirl",
+            "sail"
+          ]
+        },
+        "blocks": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 8,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 305999
+          }
+        },
+        "parts": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 305999
+          }
+        }
+      },
+      "required": [
+        "version",
+        "seed",
+        "name",
+        "subject",
+        "level",
+        "activity",
+        "setting",
+        "prop",
+        "motion",
+        "styleId",
+        "mechanic",
+        "blocks"
       ]
     },
-    "subject": {
-      "type": "string",
-      "enum": [
-        "pirate ship",
-        "boat",
-        "rocket",
-        "plane",
-        "bird",
-        "car",
-        "bicycle",
-        "fish",
-        "octopus",
-        "cat",
-        "dog",
-        "bear",
-        "dragon",
-        "tree",
-        "house",
-        "flower",
-        "umbrella",
-        "cloud",
-        "monster"
-      ]
-    },
-    "setting": {
-      "type": "string",
-      "enum": [
-        "island",
-        "ocean",
-        "space",
-        "sky",
-        "road",
-        "forest",
-        "garden",
-        "room",
-        "underwater",
-        "mountains"
-      ]
-    },
-    "motion": {
-      "type": "string",
-      "enum": [
-        "glide",
-        "bounce",
-        "orbit",
-        "fly",
-        "swim",
-        "grow"
-      ]
-    },
-    "prop": {
-      "type": "string",
-      "enum": [
-        "none",
-        "moon",
-        "stars",
-        "island",
-        "fish",
-        "trees",
-        "clouds",
-        "rocks"
-      ]
+    {
+      "type": "object",
+      "properties": {
+        "activity": {
+          "type": "string",
+          "enum": [
+            "animation",
+            "dodge",
+            "jump",
+            "pet"
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "enum": [
+            "pirate ship",
+            "boat",
+            "rocket",
+            "plane",
+            "bird",
+            "car",
+            "bicycle",
+            "fish",
+            "octopus",
+            "cat",
+            "dog",
+            "bear",
+            "dragon",
+            "tree",
+            "house",
+            "flower",
+            "umbrella",
+            "cloud",
+            "monster"
+          ]
+        },
+        "setting": {
+          "type": "string",
+          "enum": [
+            "island",
+            "ocean",
+            "space",
+            "sky",
+            "road",
+            "forest",
+            "garden",
+            "room",
+            "underwater",
+            "mountains"
+          ]
+        },
+        "motion": {
+          "type": "string",
+          "enum": [
+            "glide",
+            "bounce",
+            "orbit",
+            "fly",
+            "swim",
+            "grow"
+          ]
+        },
+        "prop": {
+          "type": "string",
+          "enum": [
+            "none",
+            "moon",
+            "stars",
+            "island",
+            "fish",
+            "trees",
+            "clouds",
+            "rocks"
+          ]
+        }
+      },
+      "required": [
+        "activity",
+        "subject",
+        "setting",
+        "motion",
+        "prop"
+      ],
+      "additionalProperties": false
     }
-  },
-  "required": [
-    "activity",
-    "subject",
-    "setting",
-    "motion",
-    "prop"
-  ],
-  "additionalProperties": false
+  ]
 }

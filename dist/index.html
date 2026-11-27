@@ -4,36 +4,105 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
-<link rel="manifest" href="app.webmanifest">
-<meta name="description" content="An empty slate. Draw, type, or speak to make something move.">
+<meta name="description" content="A quiet pixel slate. Draw, type, or speak to make something you can play with.">
 <title>LowStim</title>
-<style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:white;color:black;font:16px system-ui,sans-serif}canvas{width:100%;height:100%;display:block;touch-action:none}canvas:focus:not(:focus-visible){outline:none}canvas:focus-visible{outline:2px solid;outline-offset:-3px}
-.chin{position:fixed;bottom:max(16px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(660px,calc(100% - 28px));display:grid;gap:6px;pointer-events:none}.row,.msg{pointer-events:auto;border:1px solid #111;background:#fff;box-shadow:3px 3px 0 #111}.row{display:flex;align-items:stretch;gap:3px;padding:4px}.row button,.msg button{background:white;color:black;border:1px solid transparent;font:inherit;min-height:44px;padding:0 10px;cursor:pointer;white-space:nowrap}.row button:hover,.msg button:hover{border-color:black}.row button.main{background:black;color:white;font-weight:720}.row input{border:0;border-right:1px solid black;min-width:0;width:100%;padding:0 8px;font:inherit;color:black}.row input::placeholder{color:#555}.msg{padding:8px 10px;font-size:14px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}.msg button{border:1px solid #111;min-height:36px;padding:0 8px;font-size:14px}.msg p{margin:3px 0;width:100%}button:focus-visible,input:focus-visible{outline:2px solid;outline-offset:-2px}.main:focus-visible{outline-color:white}.msg:empty,[hidden]{display:none!important}.tiny{font-size:13px!important}.collection{position:fixed;inset:auto 0 0;max-height:66%;overflow:auto;padding:18px;background:white;border-top:2px solid black}.collection header{display:flex;justify-content:space-between;align-items:center}.collection h2{margin:0}.collection button{min-height:44px;background:white;color:black;border:1px solid black;margin:6px 5px 0 0;padding:4px 10px;font:inherit}.collection button:hover{background:black;color:white}
-</style>
+<link rel="manifest" href="app.webmanifest">
+<link rel="stylesheet" href="slate.css">
 </head>
 <body>
-<canvas id="surface" tabindex="0" aria-label="Blank slate. Drag to draw. Tap or press Enter to type or speak."></canvas>
-<button id="more" type="button" aria-label="Make or change a scene" hidden style="position:fixed;bottom:max(16px,env(safe-area-inset-bottom));right:16px;background:white;border:1px solid black;color:black;min-width:44px;min-height:44px;font-size:19px">···</button>
-<div class="chin">
-<div class="msg" id="notice" role="status" hidden></div>
-<form class="row" id="bar" hidden>
-<input id="idea" aria-label="What should the slate make?" maxlength="200" placeholder="Say it, type it, or draw it" autocomplete="off" enterkeyhint="go">
-<button type="button" id="mic" aria-label="Speak">Mic</button>
-<button type="submit" id="go" class="main">Make</button>
-<button type="button" id="menu" aria-label="Slate options">···</button>
-</form>
+<svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<defs>
+  <symbol id="i-mic" viewBox="0 0 16 16"><path d="M6 1h4v1h1v6h-1v1H6V8H5V2h1zM3 6h1v3h1v1h1v1h4v-1h1V9h1V6h1v4h-1v1h-1v1H9v2h3v1H4v-1h3v-2H5v-1H4v-1H3z"/></symbol>
+  <symbol id="i-keys" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M0 3h16v10H0zM1 4v8h14V4zM2 5h2v2H2zm4 0h2v2H6zm4 0h2v2h-2zM3 8h2v1H3zm4 0h2v1H7zm4 0h2v1h-2zM4 10h8v1H4z"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 16 16"><path d="M1 7h3v3H1zm5 0h3v3H6zm5 0h3v3h-3z"/></symbol>
+  <symbol id="i-save" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M2 1h10v1h1v1h1v1h1v11H1V1zm1 1v11h1V8h8v5h1V5h-1V4h-1V3h-1v3H4V2zm2 0v3h4V2zm1 8v3h4v-3z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M13 3h2v2h-2v2h-2v2H9v2H7v2H5v-2H3V9H1V7h2v1h2v2h2V8h2V6h2V4h2z"/></symbol>
+  <symbol id="i-close" viewBox="0 0 16 16"><path d="M2 2h2v2h2v2h2v1h1V5h2V3h2V2h1v2h-1v2h-2v2h-1v1h1v1h2v2h1v2h-2v-1h-2v-2H8v-1H7v1H6v1H5v1H4v1H2v-2h2v-2h2V8H5V7H4V6H3V5H2z"/></symbol>
+  <symbol id="i-go" viewBox="0 0 16 16"><path d="M8 2h2v2h2v2h2v1h1v2h-1v1h-2v2h-2v2H8v-2h2v-2h2V9H1V7h11V6h-2V4H8z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 16 16"><path d="M3 3h10v10H3z"/></symbol>
+</defs>
+</svg>
+<canvas id="surface" tabindex="0" aria-label="Blank slate. Draw and pause to make a scene. Double tap, hold, or press Enter for the microphone, keyboard, and slate menu."></canvas>
+<div id="sceneHint" hidden><span id="sceneInstruction"></span><span id="sceneGoal"></span></div>
+<div id="sceneTools" class="scene-tools" hidden>
+  <button type="button" class="icon" id="save" aria-label="Save creation" title="Save creation"><svg aria-hidden="true"><use href="#i-save"/></svg></button>
+  <button type="button" class="icon" id="more" aria-label="Open slate menu" title="Slate menu"><svg aria-hidden="true"><use href="#i-menu"/></svg></button>
 </div>
-<section class="collection" id="collection" hidden aria-label="Slate options">
-<header><h2>Slate</h2><button id="close" type="button">Done</button></header>
-<button id="new" type="button">Blank canvas</button>
-<button id="model" type="button" hidden>Import Qwen GGUF</button>
-<p id="modelInfo" hidden></p>
-<h3>Saved creations</h3><div id="saved"></div>
-</section>
+<div id="popover" hidden>
+  <div id="chooser" class="toolbox" role="group" aria-label="Input and slate tools" hidden>
+    <button class="icon" id="mic" aria-label="Speak an idea" title="Speak an idea"><svg aria-hidden="true"><use href="#i-mic"/></svg></button>
+    <button class="icon" id="keyboard" aria-label="Type an idea" title="Type an idea"><svg aria-hidden="true"><use href="#i-keys"/></svg></button>
+    <button class="icon secondary" id="menu" aria-label="Open slate menu" title="Slate menu"><svg aria-hidden="true"><use href="#i-menu"/></svg></button>
+  </div>
+  <form id="bar" class="toolbox input-box" hidden>
+    <label class="sr-only" for="idea">Your idea</label>
+    <input type="text" id="idea" maxlength="240" placeholder="Make something…" autocomplete="off" enterkeyhint="go">
+    <button type="submit" class="icon primary" id="go" aria-label="Make creation" title="Make creation"><svg aria-hidden="true"><use href="#i-go"/></svg></button>
+    <button type="button" class="icon" id="cancelType" aria-label="Close keyboard" title="Close"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+  </form>
+  <div id="voice" class="toolbox voice-box" hidden>
+    <span id="voiceInfo" role="status">Listening…</span>
+    <button type="button" id="stopVoice">Finish</button>
+    <button type="button" class="icon" id="cancelVoice" aria-label="Cancel recording" title="Cancel"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+  </div>
+</div>
+<div id="feedback" class="feedback" hidden><span id="notice" role="status" aria-live="polite"></span><button id="feedbackAction" hidden></button></div>
+<dialog id="collection" aria-labelledby="sheetTitle">
+  <header class="sheet-head"><h1 id="sheetTitle">LowStim</h1><button class="icon" id="close" aria-label="Close slate menu" title="Close"><svg aria-hidden="true"><use href="#i-close"/></svg></button></header>
+  <nav class="tabs" aria-label="Slate menu sections">
+    <button data-tab="slate" aria-pressed="true">Slate</button><button data-tab="library" aria-pressed="false">Saved</button><button data-tab="offline" aria-pressed="false">Offline</button><button data-tab="account" aria-pressed="false">Account</button>
+  </nav>
+  <div class="sheet-body">
+    <section id="panel-slate">
+      <fieldset><legend>Stimulation</legend>
+        <div class="levels" id="levels">
+          <label><input type="radio" name="level" value="low"><span>Low</span></label>
+          <label><input type="radio" name="level" value="medium"><span>Medium</span></label>
+          <label><input type="radio" name="level" value="high"><span>High</span></label>
+          <label><input type="radio" name="level" value="extra high"><span>Extra high</span></label>
+          <label><input type="radio" name="level" value="max"><span>Max</span></label>
+        </div>
+      </fieldset>
+      <p id="levelInfo" class="muted" aria-live="polite"></p>
+      <div class="actions"><button id="new">Blank slate</button><button id="refine" hidden>Change this scene</button></div>
+    </section>
+    <section id="panel-library" hidden>
+      <h2>Saved creations</h2><p class="muted" id="savePlace"></p><div class="saved-list" id="saved"></div>
+    </section>
+    <section id="panel-offline" hidden>
+      <h2>Offline studio</h2>
+      <div id="offlineEdition"><p class="muted" id="editionInfo"></p>
+        <div class="actions"><a class="button primary" id="downloadFull" href="./download/LowStim-complete.zip" download>Desktop ZIP with both models</a><a class="button" id="downloadApp" href="./download/LowStim-offline.zip" download>App only ZIP</a><button id="installApp">Keep offline</button></div>
+        <p class="note" id="offlineInfo" aria-live="polite"></p>
+      </div>
+      <div class="model-row"><h3>Language model</h3><p id="modelInfo" class="muted" aria-live="polite"></p>
+        <div class="actions"><button id="model" hidden>Import Qwen GGUF</button><button id="getPlanner" hidden>Download Qwen</button><button id="importPlanner" hidden>Import model file</button></div>
+      </div>
+      <div class="model-row"><h3>Speech model</h3><p id="speechInfo" class="muted" aria-live="polite"></p>
+        <div class="actions"><button id="getSpeech" hidden>Download Whisper</button><button id="importSpeech" hidden>Import speech file</button></div>
+      </div>
+      <input type="file" id="modelFile" hidden>
+      <p class="note" id="plannerInfo"></p>
+    </section>
+    <section id="panel-account" hidden>
+      <h2>Your account</h2><p class="muted" id="accountInfo" aria-live="polite"></p>
+      <form id="accountForm" hidden>
+        <label for="username">Username</label><input id="username" name="username" autocomplete="username" autocapitalize="none" required maxlength="64">
+        <label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256">
+        <div class="actions"><button class="primary" type="submit">Sign in</button><button type="submit" value="register">Create account</button></div>
+      </form>
+      <button id="logout" hidden>Sign out</button><p class="note" id="accountNotice" role="status"></p>
+    </section>
+  </div>
+</dialog>
 <script src="sketch-model.js" defer></script>
+<script src="catalog.js" defer></script>
 <script src="scene.js" defer></script>
 <script src="world.js" defer></script>
+<script src="local-models.js" defer></script>
+<script src="offline.js" defer></script>
+<script src="account.js" defer></script>
+<script src="studio-menu.js" defer></script>
 <script src="slate.js" defer></script>
 </body>
 </html>
