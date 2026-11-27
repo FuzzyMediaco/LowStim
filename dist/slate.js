@@ -13,6 +13,7 @@
   let drawing = null, touch = null, lastTap = null, anchor = null;
   let sketchTimer, holdTimer, feedbackTimer, transcriptTimer, frameId = 0, previousTime = 0;
   let generation = 0, busy = false, saved = false, saving = false, planController = null;
+  let previewingSpeech = false;
   let voiceSession = null, nativeVoice = null, nativePlan = null, activeKey = null;
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
   const studio = createStudioMenu({
@@ -46,6 +47,11 @@
   function tools(view, at) {
     clearTimeout(sketchTimer);
     clearTimeout(transcriptTimer);
+    if (previewingSpeech && view !== "bar") {
+      previewingSpeech = false;
+      input.value = "";
+      feedback();
+    }
     if (at) anchor = at;
     for (const name of ["chooser", "bar", "voice"]) $(name).hidden = name !== view;
     popover.hidden = !view;
@@ -312,6 +318,8 @@
     const sketch = points.length ? Forge.sketchLabel(points) : "";
     const options = {level: studio.level, seed: Forge.newSeed()};
     const id = ++generation;
+    // Once submitted, the input remains available if generation needs a retry.
+    previewingSpeech = false;
     busy = true; input.blur(); tools(null); $("sceneTools").hidden = true; $("sceneHint").hidden = true;
     feedback("Making your creation…", {label: "Cancel", run: () => {
       generation++; busy = false; stopPlan(); feedback(); $("sceneTools").hidden = !scene; renderSoon();
@@ -354,6 +362,7 @@
       return;
     }
     input.value = phrase.trim().slice(0, input.maxLength);
+    previewingSpeech = true;
     tools("bar", anchor || center());
     feedback("Tap the transcript to edit, or let it play.");
     // Leave the keyboard closed until the speaker chooses to edit.
